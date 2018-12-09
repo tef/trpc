@@ -2,8 +2,9 @@ import threading
 import socket
 import traceback
 import sys
+import json
 
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin, urlencode, parse_qsl
 from wsgiref.simple_server import make_server, WSGIRequestHandler
 
 def funcargs(m):
@@ -71,23 +72,94 @@ class Meta(type):
                 return fn
             return _decorate
 
-
 class Service(metaclass=Meta):
     pass
 
 class Model(metaclass=Meta):
     pass
 
+
+class objects:
+    """
+        wire types:
+
+        all wire types are json objects
+
+        must have 'kind', 'apiVersion', 'metadata' field
+        kind is built in or java style name
+        metadata may contain 'id', 'url'
+
+    """
+
+    class Wire:
+        fields = () # top level field names
+        metadata = () # metadata field names
+        apiVersion = 'v0'
+
+        @property
+        def kind(self):
+            return self.__class__.__name__
+
+        def encode(self):
+            fields = {k:getattr(self, k) for k in self.fields}
+            metadata = {k:getattr(self, k) for k in self.metadata}
+            return "text/json", json.dumps(dict(
+                kind=self.kind,
+                apiVersion=self.apiVersion,
+                metadata={} if not metadata else metadata,
+                **fields
+            ))
+
+    class Response(Wire):
+        apiVersion = 'v0'
+        fields = ('value',)
+        metadata = ()
+
+        def __init__(self, value):
+            self.value = value
+
+    class Namespace(Wire):
+        apiVersion = 'v0'
+        fields = ('members',)
+        metadata = ()
+
+        def __init__(self, members ):
+            self.members = members
+
+
+
 class App:
     def __init__(self, namespace):
         self.namespace = namespace
 
+    def handle(self, method, path, data):
+        out = objects.Response( dict(method=method, path=path, data=data))
+        return out.encode()
+
     def __call__(self, environ, start_response):
         try:
-            status = "200 nice"
-            response_headers = [("content-type", "text/json")]
+            method = environ.get('REQUEST_METHOD', '')
+            prefix = environ.get('SCRIPT_NAME', '')
+            path = environ.get('PATH_INFO', '')
+            parameters = parse_qsl(environ.get('QUERY_STRING', ''))
+
+            content_length = environ['CONTENT_LENGTH']
+            if content_length:
+                data = environ['wsgi.input'].read(int(content_length))
+                if data:
+                    data = json.loads(data.decode('utf-8'))
+                else:
+                    data = None
+
+            else:
+                data = None
+
+            content_type, response = self.handle(method, path, data)
+
+            status = "200 Adequate"
+            response_headers = [("content-type", content_type)]
             start_response(status, response_headers)
-            return [b"nice"]
+            return [response.encode('utf-8'), b'\n']
         except (StopIteration, GeneratorExit, SystemExit, KeyboardInterrupt):
             raise
         except Exception as e:
@@ -105,8 +177,10 @@ class App:
             print(s.url)
             try:
                 while True: pass
+            except KeyboardInterrupt:
+                pass
             finally:
-                server_thread.stop()
+                s.stop()
 
 
 
