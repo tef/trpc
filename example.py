@@ -5,8 +5,12 @@ class Example(Service):
     def hello():
         return "world"
 
+def nice(person):
+    return False
+
 namespace = {
     'Example': Example,
+    'nice': nice,
 }
 
 app = App('example', namespace) # WSGI App

@@ -178,7 +178,10 @@ class Client:
             url = urljoin(self.base_url, name)
             return Client.Request('POST', url, args)
 
-    def raw_fetch(self, request):
+    def fetch(self, request):
+        if isinstance(request, str):
+            request = self.Request("GET", request, None)
+
         data = request.data
         if data is None:
             data = ""
@@ -207,21 +210,31 @@ class Client:
         return self.Response(base_url, kind, apiVersion, metadata, obj)
 
 
-    def make_request(self, verb, request):
-        if isinstance(request, str):
-            request = self.Request(verb, request, None)
-        return request
+class Remote:
+    def __init__(self, client, response):
+        self.client = client
+        self.obj = response
 
-    def fetch(self, request):
-        r = self.make_request('GET', request)
-        return self.raw_fetch(r)
+    def __getattr__(self, name):
+        if name in self.obj.metadata.get('links',()):
+            req = self.obj.open_link(name)
+            obj = self.client.fetch(req)
+            if isinstance(obj, self.client.Response):
+                return Remote(self.client, obj)
+            return obj
 
-    def call(self, request):
-        r = self.make_request('POST', request)
-        return self.raw_fetch(r)
+        def method(**args):
+            req = self.obj.submit_form(name, args)
+            obj = self.client.fetch(req)
+            if isinstance(obj, self.client.Response):
+                return Remote(self.client, obj)
+            return obj
+        return method
 
-    def list(self, request):
-        pass
+def open(endpoint):
+    c = Client()
+    obj = c.fetch(endpoint)
+    return Remote(c, obj)
 
 def rpc():
     def _decorate(fn):
@@ -248,7 +261,7 @@ class App:
         if request is None:
             return
         request = json.loads(request)
-        if request['kind'] == 'request':
+        if request['kind'] == 'Request':
             return request['arguments']
 
 
@@ -256,7 +269,9 @@ class App:
         if method == 'GET':
             raise HTTPResponse('405 not allowed', (), 'no')
         elif method == 'POST':
+            print(data)
             data = self.unwrap_request(data)
+            print(data)
             if not data: data = {}
             return func(**data)
         
@@ -288,7 +303,14 @@ class App:
         first, tail = first[0], (first[1] if first[1:] else "")
 
         if not first:
-            out = objects.Namespace(name=self.name, links=list(self.namespace.keys()))
+            links = []
+            forms = {}
+            for key, value in self.namespace.items():
+                if isinstance(value, types.FunctionType):
+                    forms[key] = funcargs(value)
+                elif isinstance(value, type) and issubclass(value, Service):
+                    links.append(key)
+            out = objects.Namespace(name=self.name, links=links, forms=forms)
             return out.encode()
         else:
             item = self.namespace.get(first)
@@ -420,13 +442,14 @@ class CLI:
         mode, path, args = self.parse(argv, environ)
 
         obj = self.client.fetch(endpoint)
+
         for p in path[:-1]:
-            obj = self.client.raw_fetch(obj.open_link(p))
+            obj = self.client.fetch(obj.open_link(p))
     
         if path:
             if mode == 'call':
-                req = obj.submit_form(path[-1], args)
-                obj = self.client.raw_fetch(req) 
+                req = obj.submit_form(path[-1], dict(args))
+                obj = self.client.fetch(req) 
         print(obj)
         return
 
@@ -455,10 +478,7 @@ class CLI:
                     name, value = arg[2:], None
             else:
                 name, value = None, arg
-            if name in self.parser.argspec:
-                app_args.append((name, value))
-            else:
-                args.append((name, value))
+            args.append((name, value))
         return mode, path, args
 
     def automain(name):
