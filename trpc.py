@@ -50,37 +50,6 @@ class Server(threading.Thread):
                 traceback.print_exc()
         self.join(5)
 
-class Meta(type):
-    @classmethod
-    def __prepare__(metacls, name, bases, **args):
-        """ Called before class definition to return class namespace"""
-        m = metacls.Methods()
-        for name in metacls.Methods.__dict__:
-            if not name.startswith('__'):
-                setattr(m, name, getattr(m, name))
-        return m.__dict__
-
-    def __new__(metacls, name, bases, attrs, **args):
-        """ Called after class definition to return a class object """
-        attrs = dict(attrs)
-        for k, v in metacls.Methods.__dict__.items():
-            if v and attrs.get(k) == v:
-                attrs.pop(k)
-
-        return super().__new__(metacls, name, bases, attrs)
-
-    class Methods:
-        def rpc(self):
-            def _decorate(fn):
-                return fn
-            return _decorate
-
-class Service(metaclass=Meta):
-    pass
-
-class Model(metaclass=Meta):
-    pass
-
 
 class objects:
     """
@@ -147,6 +116,150 @@ class objects:
             self.members = members
 
 
+
+class Client:
+    def __init__(self):
+        pass
+
+    class Request:
+        def __init__(self, verb, url, data):
+            self.verb = verb
+            self.url = url
+            self.data = data
+
+        def urllib_request(self):
+            data = self.data
+            if data is None:
+                data = {}
+            data = json.dumps(data).encode('utf8')
+
+            return urllib.request.Request(
+                url=self.url,
+                data=data,
+                method=self.verb,
+                headers={'Content-Type':'application/json'},
+            )
+
+    class Namespace:
+        def __init__(self, obj, build_request):
+            self.members = obj['members']
+
+    class Service:
+        def __init__(self, obj, build_request):
+            self._obj = obj
+                
+    def urllib_request(self, verb, request):
+        if isinstance(request, str):
+            request = self.Request(verb, request, None)
+        return request.urllib_request()
+
+    def unwrap_response(self, fh):
+        base_url = fh.url
+
+        def build_request(method, url, data):
+            url = urljoin(base_url, url)
+            return self.Request(method, url, data)
+
+
+        obj = json.load(fh)
+        if obj['kind'] == 'Response':
+            return obj['value']
+        if obj['kind'] == 'Namespace':
+            return self.Namespace(obj, build_request)
+        if obj['kind'] == 'Service':
+            return self.Namespace(obj, build_request)
+
+    def fetch(self, request):
+        r = self.urllib_request('GET', request)
+        with urllib.request.urlopen(r) as response:
+           return self.unwrap_response(response)
+
+    def call(self, request):
+        r = self.urllib_request('POST', request)
+        with urllib.request.urlopen(r) as response:
+           return self.unwrap_response(response)
+
+    def list(self, request):
+        pass
+
+class CLI:
+    MODES = set((
+        'call', 'get', 'list',
+        'set', 'update', 'create'
+        'delete',   
+        'watch', 'exec'
+        'help', 'error', 'usage', 'complete', 'version'
+    ))
+
+    def __init__(self, client):
+        self.client = client
+
+    def main(self, argv, environ):
+        if 'COMP_LINE' in environ and 'COMP_POINT' in environ:
+            # Bash Line Completion.
+            line, offset =  environ['COMP_LINE'], int(environ['COMP_POINT'])
+            try:
+                import shlex
+                prefix = shlex.split(line[:offset])
+                # if there's mismatched ''s bail
+            except ValueError:
+                sys.exit(0)
+
+            prefix = line[:offset].split(' ')
+            for o in self.complete(prefix):
+                print(o)
+            sys.exit(0)
+
+        self.run(argv, environ)
+
+    def run(self, argv, environ):
+        endpoint = os.environ.get("TRPC_URL", "")
+
+        if not endpoint:
+            print("Set TRPC_URL first", file=sys.stderr)
+            sys.exit(-1)
+
+        mode, path, args = self.parse(argv, environ)
+
+        print(self.client.fetch(endpoint))
+
+
+    def parse(self, argv, environ):
+        mode = "call"
+        if argv and argv[0] in self.MODES:
+            mode = argv.pop(0)
+
+        path = ""
+        app_args = []
+        args = []
+        
+        if argv and not argv[0].startswith('--'):
+            path = argv.pop(0)
+
+        flags = True
+        for arg in argv:
+            name, value = None, None
+            if flags and arg == '--':
+                flags = False
+                continue
+            if flags and arg.startswith('--'):
+                if '=' in arg:
+                    name, value = arg[2:].split('=', 1)
+                else:
+                    name, value = arg[2:], None
+            else:
+                name, value = None, arg
+            if name in self.parser.argspec:
+                app_args.append((name, value))
+            else:
+                args.append((name, value))
+        return mode, path, args
+
+    def automain(name):
+        if name == '__main__':
+            client = Client()
+            cli = CLI(client)
+            cli.main(sys.argv[1:], os.environ)
 
 class App:
     def __init__(self, namespace):
@@ -238,149 +351,52 @@ class App:
        finally:
            s.stop()
 
+class InlineMethods(type):
+    @staticmethod
+    def inline(self):
+        def _decorate(fn):
+            fn.__inline__ = True
+            return fn
+        return _decorate
 
-class Client:
-    def __init__(self):
+    @classmethod
+    def __prepare__(metacls, name, bases, **args):
+        """ Called before class definition to return class namespace"""
+        m = metacls.Methods()
+        for name in metacls.Methods.__dict__:
+            if not name.startswith('__'):
+                setattr(m, name, getattr(m, name))
+        return m.__dict__
+
+    def __new__(metacls, name, bases, attrs, **args):
+        """ Called after class definition to return a class object """
+        attrs = dict(attrs)
+        for k, v in metacls.Methods.__dict__.items():
+            if v and attrs.get(k) == v:
+                attrs.pop(k)
+
+        return super().__new__(metacls, name, bases, attrs)
+
+    class Methods:
+        def rpc(self):
+            def _decorate(fn):
+                return fn
+            return _decorate
+
+class Service(metaclass=Meta):
+    @classmethod
+    def _handle(cls, request)
         pass
 
-    class Request:
-        def __init__(self, verb, url, data):
-            self.verb = verb
-            self.url = url
-            self.data = data
-
-        def urllib_request(self):
-            data = self.data
-            if data is None:
-                data = {}
-            data = json.dumps(data).encode('utf8')
-
-            return urllib.request.Request(
-                url=self.url,
-                data=data,
-                method=self.verb,
-                headers={'Content-Type':'application/json'},
-            )
-
-    class Namespace:
-        def __init__(self, obj, build_request):
-            self.members = obj['members']
-
-    class Service:
-        def __init__(self, obj, build_request):
-            self._obj = obj
-                
-    def urllib_request(self, verb, request):
-        if isinstance(request, str):
-            request = self.Request(verb, request, None)
-        return request.urllib_request()
-
-    def unwrap_response(self, fh):
-        base_url = fh.url
-
-        def build_request(method, url, data):
-            url = urljoin(base_url, url)
-            return self.Request(method, url, data)
-
-
-        obj = json.load(fh)
-        if obj['kind'] == 'Response':
-            return obj['value']
-        if obj['kind'] == 'Namespace':
-            return self.Namespace(obj, build_request)
-        if obj['kind'] == 'Service':
-            return self.Namespace(obj, build_request)
-
-    def fetch(self, request):
-        r = self.urllib_request('GET', request)
-        with urllib.request.urlopen(r) as response:
-           return self.unwrap_response(response)
-
-    def call(self, request):
-        r = self.urllib_request('POST', request)
-        with urllib.request.urlopen(r) as response:
-           return self.unwrap_response(response)
-
-    def list(self, request):
+class Model(metaclass=Meta):
+    @staticmethod
+    def rpc()
         pass
 
-class CLI:
-    MODES = set((
-        'call', 'get', 'list',
-        'set', 'update', 'create'
-        'delete', 
-        'help', 'error', 'usage', 'complete', 'version'
-    ))
+    @classmethod
+    def _handle(cls, request)
+        pass
 
-    def __init__(self, client):
-        self.client = client
-
-    def main(self, argv, environ):
-        if 'COMP_LINE' in environ and 'COMP_POINT' in environ:
-            # Bash Line Completion.
-            line, offset =  environ['COMP_LINE'], int(environ['COMP_POINT'])
-            try:
-                import shlex
-                prefix = shlex.split(line[:offset])
-                # if there's mismatched ''s bail
-            except ValueError:
-                sys.exit(0)
-
-            prefix = line[:offset].split(' ')
-            for o in self.complete(prefix):
-                print(o)
-            sys.exit(0)
-
-        self.run(argv, environ)
-
-    def run(self, argv, environ):
-        endpoint = os.environ.get("TRPC_URL", "")
-
-        if not endpoint:
-            print("Set TRPC_URL first", file=sys.stderr)
-            sys.exit(-1)
-
-        mode, path, args = self.parse(argv, environ)
-
-        print(self.client.fetch(endpoint))
-
-
-    def parse(self, argv, environ):
-        mode = "call"
-        if argv and argv[0] in self.MODES:
-            mode = argv.pop(0)
-
-        path = ""
-        app_args = []
-        args = []
-        
-        if argv and not argv[0].startswith('--'):
-            path = argv.pop(0)
-
-        flags = True
-        for arg in argv:
-            name, value = None, None
-            if flags and arg == '--':
-                flags = False
-                continue
-            if flags and arg.startswith('--'):
-                if '=' in arg:
-                    name, value = arg[2:].split('=', 1)
-                else:
-                    name, value = arg[2:], None
-            else:
-                name, value = None, arg
-            if name in self.parser.argspec:
-                app_args.append((name, value))
-            else:
-                args.append((name, value))
-        return mode, path, args
-
-    def automain(name):
-        if name == '__main__':
-            client = Client()
-            cli = CLI(client)
-            cli.main(sys.argv[1:], os.environ)
 
 CLI.automain(__name__)
     
