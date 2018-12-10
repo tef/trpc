@@ -12,6 +12,7 @@ import inspect
 from urllib.parse import urljoin, urlencode, parse_qsl
 from wsgiref.simple_server import make_server, WSGIRequestHandler
 
+CONTENT_TYPE = "application/trpc+json"
 def funcargs(m):
     signature = inspect.signature(m)
     args = signature.parameters
@@ -86,7 +87,7 @@ class objects:
         def encode(self):
             fields = {k:getattr(self, k) for k in self.fields}
             metadata = {k:getattr(self, k) for k in self.metadata}
-            return "application/json", json.dumps(dict(
+            return CONTENT_TYPE, json.dumps(dict(
                 kind=self.kind,
                 apiVersion=self.apiVersion,
                 metadata={} if not metadata else metadata,
@@ -111,14 +112,27 @@ class objects:
         def __init__(self, value):
             self.value = value
 
+    class Service(Wire):
+        apiVersion = 'v0'
+        fields = ('name',)
+        metadata = ('links','forms', 'embeds')
+
+        def __init__(self, name, links, forms=(), embeds=()):
+            self.name = name
+            self.links = links
+            self.forms = forms
+            self.embeds = embeds
+
     class Namespace(Wire):
         apiVersion = 'v0'
-        fields = ('members',)
-        metadata = ()
+        fields = ('name', )
+        metadata = ('links','forms', 'embeds')
 
-        def __init__(self, members ):
-            self.members = members
-
+        def __init__(self, name, links, forms=(), embeds=()):
+            self.name = name
+            self.links = links
+            self.forms = forms
+            self.embeds = embeds
 
 
 class Client:
@@ -134,15 +148,19 @@ class Client:
         def urllib_request(self):
             data = self.data
             if data is None:
-                data = {}
-            data = json.dumps(data).encode('utf8')
+                data = ""
+            else:
+                content_type, data = objects.Request(data).encode()
+
+            data = data.encode('utf8')
 
             return urllib.request.Request(
                 url=self.url,
                 data=data,
                 method=self.verb,
-                headers={'Content-Type':'application/json'},
+                headers={'Content-Type': CONTENT_TYPE},
             )
+        
 
     class Namespace:
         def __init__(self, obj, build_request):
@@ -171,17 +189,39 @@ class Client:
     def unwrap_response(self, fh):
         base_url = fh.url
         obj = json.load(fh)
-        return self.build_response(base_url, obj)
+
+    def rawfetch(self, request):
+        with urllib.request.urlopen(request) as fh:
+            base_url = fh.url
+            obj = json.load(fh)
+            return base_url, obj
+
+    def navigate(self, endpoint, path):
+        request = self.urllib_request('GET', endpoint)
+        base_url, obj = self.rawfetch(request)
+
+        for p in path:
+            links = obj['metadata']['links']
+            if p not in links:
+                raise Exception(p)
+
+            url = urljoin(base_url, p)
+
+            request = self.urllib_request('GET', url)
+            base_url, obj = self.rawfetch(request)
+
+        return obj
+
 
     def fetch(self, request):
         r = self.urllib_request('GET', request)
-        with urllib.request.urlopen(r) as response:
-           return self.unwrap_response(response)
+        base_url, obj = self.rawfetch(r)
+        return self.build_response(base_url, obj)
 
     def call(self, request):
         r = self.urllib_request('POST', request)
-        with urllib.request.urlopen(r) as response:
-           return self.unwrap_response(response)
+        base_url, obj = self.rawfetch(r)
+        return self.build_response(base_url, obj)
 
     def list(self, request):
         pass
@@ -203,8 +243,9 @@ class HTTPResponse(Exception):
         self.body = body
 
 class App:
-    def __init__(self, namespace):
+    def __init__(self, name, namespace):
         self.namespace = namespace
+        self.name = name
 
     def unwrap_request(self, request):
         if request is None:
@@ -217,10 +258,10 @@ class App:
     def handle(self, method, path, data):
 
         first = path.split('/',1)
-        first, tail = first[0], first[1:]
+        first, tail = first[0], (first[1] if first[1:] else "")
 
         if not first:
-            out = objects.Namespace(list(self.namespace.keys()))
+            out = objects.Namespace(name=self.name, links=list(self.namespace.keys()))
             return out.encode()
         else:
             item = self.namespace.get(first)
@@ -228,14 +269,21 @@ class App:
                 raise HTTPResponse('404 not found', (), 'no')
             out = objects.Response( dict(method=method, first=first, path=path, data=data))
 
-            if isinstance(item, types.FunctionType):
-                if method == 'GET':
-                    out = None
-                elif method == 'POST':
-                    data = self.unwrap_request(data)
-                    out = item(**data)
-            elif isinstance(item, Service):
-                pass
+            if isinstance(item, type) and issubclass(item, Service):
+                second = tail.split('/',1)
+                second, tail = second[0], (second[1] if second[1:] else "")
+                if not second:
+                    methods = {}
+                    for name, m in item.__dict__.items():
+                        if getattr(m, '__rpc__', not name.startswith('_')):
+                            methods[name] = funcargs(m)
+                    out = objects.Service(second, links=(), forms=methods) 
+                else:
+                    if method == 'GET':
+                        out = None
+                    elif method == 'POST':
+                        data = self.unwrap_request(data)
+                        out = item(**data)
 
             if not isinstance(out, objects.Wire):
                 out = objects.Response(out)
@@ -361,7 +409,16 @@ class CLI:
 
         mode, path, args = self.parse(argv, environ)
 
-        print(self.client.fetch(endpoint))
+
+        obj = self.client.navigate(endpoint, path[:-1])
+
+        print(obj)
+        return
+        links = obj['metadata']['links']
+        forms = obj['metadata']['forms']
+
+        
+
 
 
     def parse(self, argv, environ):
@@ -374,7 +431,7 @@ class CLI:
         args = []
         
         if argv and not argv[0].startswith('--'):
-            path = argv.pop(0)
+            path = argv.pop(0).split(':')
 
         flags = True
         for arg in argv:

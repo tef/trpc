@@ -5,16 +5,11 @@ class Example(Service):
     def hello():
         return "world"
 
-@rpc()
-def lie():
-    return "everything is fine"
-
 namespace = {
     'Example': Example,
-    'lie': lie,
 }
 
-app = App(namespace) # WSGI App
+app = App('example', namespace) # WSGI App
 
 app.automain(__name__)
 
