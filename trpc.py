@@ -2,7 +2,9 @@ import socket
 import traceback
 import urllib.request
 import sys
+import os
 import json
+import shlex
 import threading
 
 from urllib.parse import urljoin, urlencode, parse_qsl
@@ -276,8 +278,82 @@ class Client:
         with urllib.request.urlopen(r) as response:
            return self.unwrap_response(response)
 
-if __name__ == '__main__':
-    client = Client()
+    def list(self, request):
+        pass
 
-    print(client.fetch(sys.argv[1]))
+class CLI:
+    MODES = set((
+        'call', 'get', 'list',
+        'set', 'update', 'create'
+        'delete', 
+        'help', 'error', 'usage', 'complete', 'version'
+    ))
+
+    def __init__(self, client):
+        self.client = client
+
+    def main(self, argv, environ):
+        if 'COMP_LINE' in environ and 'COMP_POINT' in environ:
+            # Bash Line Completion.
+            line, offset =  environ['COMP_LINE'], int(environ['COMP_POINT'])
+            try:
+                import shlex
+                prefix = shlex.split(line[:offset])
+                # if there's mismatched ''s bail
+            except ValueError:
+                sys.exit(0)
+
+            prefix = line[:offset].split(' ')
+            for o in self.complete(prefix):
+                print(o)
+            sys.exit(0)
+
+        endpoint = os.environ.get("TRPC_URL", "")
+        if not endpoint:
+            print("Set TRPC_URL first", file=sys.stderr)
+            sys.exit(-1)
+
+        mode, path, args = self.parse(argv, environ)
+
+        print(self.client.fetch(endpoint))
+
+
+    def parse(self, argv, environ):
+        mode = "call"
+        if argv and argv[0] in self.MODES:
+            mode = argv.pop(0)
+
+        path = ""
+        app_args = []
+        args = []
+        
+        if argv and not argv[0].startswith('--'):
+            path = argv.pop(0)
+
+        flags = True
+        for arg in argv:
+            name, value = None, None
+            if flags and arg == '--':
+                flags = False
+                continue
+            if flags and arg.startswith('--'):
+                if '=' in arg:
+                    name, value = arg[2:].split('=', 1)
+                else:
+                    name, value = arg[2:], None
+            else:
+                name, value = None, arg
+            if name in self.parser.argspec:
+                app_args.append((name, value))
+            else:
+                args.append((name, value))
+        return mode, path, args
+
+    def automain(name):
+        if name == '__main__':
+            client = Client()
+            cli = CLI(client)
+            cli.main(sys.argv[1:], os.environ)
+
+CLI.automain(__name__)
     
