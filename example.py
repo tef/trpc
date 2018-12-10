@@ -1,6 +1,5 @@
 from trpc import App, Model, Service
 
-
 class Example(Service):
     @rpc()
     def hello():

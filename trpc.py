@@ -1,8 +1,9 @@
-import threading
 import socket
 import traceback
+import urllib.request
 import sys
 import json
+import threading
 
 from urllib.parse import urljoin, urlencode, parse_qsl
 from wsgiref.simple_server import make_server, WSGIRequestHandler
@@ -84,10 +85,18 @@ class objects:
         wire types:
 
         all wire types are json objects
-
         must have 'kind', 'apiVersion', 'metadata' field
+
         kind is built in or java style name
-        metadata may contain 'id', 'url'
+
+        metadata may contain
+            'id', 'url' ,'collection'
+            'links', 'methods', 'embeds'
+            'selector', 
+
+        other top level fields include
+            value values attribute
+            state
 
     """
 
@@ -103,12 +112,21 @@ class objects:
         def encode(self):
             fields = {k:getattr(self, k) for k in self.fields}
             metadata = {k:getattr(self, k) for k in self.metadata}
-            return "text/json", json.dumps(dict(
+            return "application/json", json.dumps(dict(
                 kind=self.kind,
                 apiVersion=self.apiVersion,
                 metadata={} if not metadata else metadata,
                 **fields
             ))
+
+    
+    class Request(Wire):
+        apiVersion = 'v0'
+        fields = ('arguments',)
+        metadata = ()
+
+        def __init__(self, arguments):
+            self.arguments = arguments
 
     class Response(Wire):
         apiVersion = 'v0'
@@ -133,14 +151,27 @@ class App:
         self.namespace = namespace
 
     def handle(self, method, path, data):
-        out = objects.Response( dict(method=method, path=path, data=data))
-        return out.encode()
+
+        first = path.split('/',1)
+        first, tail = first[0], first[1:]
+
+        if not first:
+            out = objects.Namespace(list(self.namespace.keys()))
+            return out.encode()
+        else:
+            item = self.namespace.get(first)
+            out = objects.Response( dict(method=method, first=first, path=path, data=data))
+            if method == 'GET':
+                pass
+            elif method == 'POST':
+                pass
+            return out.encode()
 
     def __call__(self, environ, start_response):
         try:
             method = environ.get('REQUEST_METHOD', '')
             prefix = environ.get('SCRIPT_NAME', '')
-            path = environ.get('PATH_INFO', '')
+            path = environ.get('PATH_INFO', '').lstrip('/')
             parameters = parse_qsl(environ.get('QUERY_STRING', ''))
 
             content_length = environ['CONTENT_LENGTH']
@@ -183,4 +214,70 @@ class App:
                 s.stop()
 
 
+class Client:
+    def __init__(self):
+        pass
 
+    class Request:
+        def __init__(self, verb, url, data):
+            self.verb = verb
+            self.url = url
+            self.data = data
+
+        def urllib_request(self):
+            data = self.data
+            if data is None:
+                data = {}
+            data = json.dumps(data).encode('utf8')
+
+            return urllib.request.Request(
+                url=self.url,
+                data=data,
+                method=self.verb,
+                headers={'Content-Type':'application/json'},
+            )
+
+    class Namespace:
+        def __init__(self, obj, build_request):
+            self.members = obj['members']
+
+    class Service:
+        def __init__(self, obj, build_request):
+            self._obj = obj
+                
+    def urllib_request(self, verb, request):
+        if isinstance(request, str):
+            request = self.Request(verb, request, None)
+        return request.urllib_request()
+
+    def unwrap_response(self, fh):
+        base_url = fh.url
+
+        def build_request(method, url, data):
+            url = urljoin(base_url, url)
+            return self.Request(method, url, data)
+
+
+        obj = json.load(fh)
+        if obj['kind'] == 'Response':
+            return obj['value']
+        if obj['kind'] == 'Namespace':
+            return self.Namespace(obj, build_request)
+        if obj['kind'] == 'Service':
+            return self.Namespace(obj, build_request)
+
+    def fetch(self, request):
+        r = self.urllib_request('GET', request)
+        with urllib.request.urlopen(r) as response:
+           return self.unwrap_response(response)
+
+    def call(self, request):
+        r = self.urllib_request('POST', request)
+        with urllib.request.urlopen(r) as response:
+           return self.unwrap_response(response)
+
+if __name__ == '__main__':
+    client = Client()
+
+    print(client.fetch(sys.argv[1]))
+    
