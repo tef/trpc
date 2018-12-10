@@ -353,7 +353,7 @@ class App:
 
 class InlineMethods(type):
     @staticmethod
-    def inline(self):
+    def staticinline():
         def _decorate(fn):
             fn.__inline__ = True
             return fn
@@ -362,39 +362,30 @@ class InlineMethods(type):
     @classmethod
     def __prepare__(metacls, name, bases, **args):
         """ Called before class definition to return class namespace"""
-        m = metacls.Methods()
-        for name in metacls.Methods.__dict__:
-            if not name.startswith('__'):
-                setattr(m, name, getattr(m, name))
-        return m.__dict__
+        d = {}
+        for b in bases:
+            for name, method in b.__dict__.items():
+                if getattr(method, '__inline__', False):
+                    d[name] = method
+        d['staticinline'] = metacls.staticinline
 
-    def __new__(metacls, name, bases, attrs, **args):
-        """ Called after class definition to return a class object """
-        attrs = dict(attrs)
-        for k, v in metacls.Methods.__dict__.items():
-            if v and attrs.get(k) == v:
-                attrs.pop(k)
+        return d
 
-        return super().__new__(metacls, name, bases, attrs)
-
-    class Methods:
-        def rpc(self):
-            def _decorate(fn):
-                return fn
-            return _decorate
-
-class Service(metaclass=Meta):
-    @classmethod
-    def _handle(cls, request)
-        pass
-
-class Model(metaclass=Meta):
-    @staticmethod
-    def rpc()
-        pass
+class Service(metaclass=InlineMethods):
+    @staticinline()
+    def rpc():
+        def _decorate(fn):
+            return fn
+        return _decorate
 
     @classmethod
-    def _handle(cls, request)
+    def _handle(cls, request):
+        pass
+
+class Model(metaclass=InlineMethods):
+
+    @classmethod
+    def _handle(cls, request):
         pass
 
 
