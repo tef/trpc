@@ -17,46 +17,13 @@ from .cli import CLI
 from .client import Client
 
 CONTENT_TYPE = objects.CONTENT_TYPE
+
 def funcargs(m):
     signature = inspect.signature(m)
     args = signature.parameters
     args = [a for a in args if not a.startswith('_')]
     if args and args[0] == 'self': args.pop(0)
     return args
-
-class WSGIServer(threading.Thread):
-    class QuietWSGIRequestHandler(WSGIRequestHandler):
-        def log_request(self, code='-', size='-'):
-            pass
-
-    def __init__(self, app, host="", port=0, request_handler=QuietWSGIRequestHandler):
-        threading.Thread.__init__(self)
-        self.daemon=True
-        self.running = True
-        self.server = make_server(host, port, app,
-            handler_class=request_handler)
-
-    @property
-    def url(self):
-        return u'http://%s:%d/'%(self.server.server_name, self.server.server_port)
-
-    def run(self):
-        self.running = True
-        while self.running:
-            self.server.handle_request()
-
-    def stop(self):
-        self.running =False
-        if self.server and self.is_alive():
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect(self.server.socket.getsockname()[:2])
-                s.send(b'\r\n')
-                s.close()
-            except IOError:
-                import traceback
-                traceback.print_exc()
-        self.join(5)
 
 def rpc():
     def _decorate(fn):
@@ -72,6 +39,14 @@ class HTTPResponse(Exception):
     def __init__(self, status, headers, body):
         self.status = status
         self.headers = headers or []
+        self.body = body
+
+class HTTPRequest:
+    def __init__(self, verb, url, params, headers, body):
+        self.verb = verb
+        self.url = url
+        self.params = params
+        self.headers = headers
         self.body = body
 
 class App:
@@ -215,4 +190,38 @@ class App:
            pass
        finally:
            s.stop()
+
+class WSGIServer(threading.Thread):
+    class QuietWSGIRequestHandler(WSGIRequestHandler):
+        def log_request(self, code='-', size='-'):
+            pass
+
+    def __init__(self, app, host="", port=0, request_handler=QuietWSGIRequestHandler):
+        threading.Thread.__init__(self)
+        self.daemon=True
+        self.running = True
+        self.server = make_server(host, port, app,
+            handler_class=request_handler)
+
+    @property
+    def url(self):
+        return u'http://%s:%d/'%(self.server.server_name, self.server.server_port)
+
+    def run(self):
+        self.running = True
+        while self.running:
+            self.server.handle_request()
+
+    def stop(self):
+        self.running =False
+        if self.server and self.is_alive():
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect(self.server.socket.getsockname()[:2])
+                s.send(b'\r\n')
+                s.close()
+            except IOError:
+                import traceback
+                traceback.print_exc()
+        self.join(5)
 
