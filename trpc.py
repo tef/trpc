@@ -261,6 +261,12 @@ class CLI:
             cli = CLI(client)
             cli.main(sys.argv[1:], os.environ)
 
+class HTTPResponse(Exception):
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers or []
+        self.body = body
+
 class App:
     def __init__(self, namespace):
         self.namespace = namespace
@@ -275,6 +281,9 @@ class App:
             return out.encode()
         else:
             item = self.namespace.get(first)
+            if not item:
+                raise HTTPResponse('404 not found', (), 'no')
+
             out = objects.Response( dict(method=method, first=first, path=path, data=data))
             if method == 'GET':
                 pass
@@ -300,12 +309,20 @@ class App:
             else:
                 data = None
 
-            content_type, response = self.handle(method, path, data)
+            try:
+                content_type, response = self.handle(method, path, data)
 
-            status = "200 Adequate"
-            response_headers = [("content-type", content_type)]
+                status = "200 Adequate"
+                response_headers = [("content-type", content_type)]
+                response = [response.encode('utf-8'), b'\n']
+            except HTTPResponse as r:
+                status = r.status
+                response_headers = r.headers
+                response = [ r.body.encode('utf-8') ]
+            print(response_headers)
+
             start_response(status, response_headers)
-            return [response.encode('utf-8'), b'\n']
+            return response
         except (StopIteration, GeneratorExit, SystemExit, KeyboardInterrupt):
             raise
         except Exception as e:
@@ -313,6 +330,7 @@ class App:
             response_headers = [("content-type", "text/plain")]
 
             start_response(status, response_headers, sys.exc_info())
+            traceback.print_exc()
             return [traceback.format_exc().encode('utf8')]
 
     def automain(self, name, port=1729):
@@ -383,7 +401,6 @@ class Service(metaclass=InlineMethods):
         pass
 
 class Model(metaclass=InlineMethods):
-
     @classmethod
     def _handle(cls, request):
         pass
