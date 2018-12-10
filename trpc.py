@@ -255,6 +255,35 @@ class App:
             return request['arguments']
 
 
+    def handle_func(self, func,  method, prefix, tail, data):
+        if method == 'GET':
+            raise HTTPResponse('405 not allowed', (), 'no')
+        elif method == 'POST':
+            data = self.unwrap_request(data)
+            return fn(**data)
+        
+        raise HTTPResponse('405 not allowed', (), 'no')
+
+    def handle_service(self, service, method, prefix, tail, data):
+        second = tail.split('/',1)
+        second, tail = second[0], (second[1] if second[1:] else "")
+        if not second:
+            methods = {}
+            for name, m in service.__dict__.items():
+                if getattr(m, '__rpc__', not name.startswith('_')):
+                    methods[name] = funcargs(m)
+            return objects.Service(second, links=(), forms=methods) 
+        else:
+            attr = getattr(item, second)
+            return self.handle_func(attr, method, prefix+"/"+second, tail, data)
+
+
+    def handle_object(self, obj, method, prefix, tail, data):
+        if isinstance(obj, types.FunctionType):
+            return self.handle_func(obj, method, prefix, tail, data)
+        elif isinstance(obj, type) and issubclass(obj, Service):
+            return self.handle_service(obj, method, prefix, tail, data)
+
     def handle(self, method, path, data):
 
         first = path.split('/',1)
@@ -267,23 +296,8 @@ class App:
             item = self.namespace.get(first)
             if not item:
                 raise HTTPResponse('404 not found', (), 'no')
-            out = objects.Response( dict(method=method, first=first, path=path, data=data))
 
-            if isinstance(item, type) and issubclass(item, Service):
-                second = tail.split('/',1)
-                second, tail = second[0], (second[1] if second[1:] else "")
-                if not second:
-                    methods = {}
-                    for name, m in item.__dict__.items():
-                        if getattr(m, '__rpc__', not name.startswith('_')):
-                            methods[name] = funcargs(m)
-                    out = objects.Service(second, links=(), forms=methods) 
-                else:
-                    if method == 'GET':
-                        out = None
-                    elif method == 'POST':
-                        data = self.unwrap_request(data)
-                        out = item(**data)
+            out = self.handle_object(item, method, first, tail, data)
 
             if not isinstance(out, objects.Wire):
                 out = objects.Response(out)
