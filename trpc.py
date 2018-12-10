@@ -318,13 +318,11 @@ class App:
                     data = data.decode('utf-8')
                 else:
                     data = None
-
             else:
                 data = None
 
             try:
                 content_type, response = self.handle(method, path, data)
-
                 status = "200 Adequate"
                 response_headers = [("content-type", content_type)]
                 response = [response.encode('utf-8'), b'\n']
