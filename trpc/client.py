@@ -103,14 +103,15 @@ class Remote:
             if isinstance(obj, self.client.Response):
                 return Remote(self.client, obj)
             return obj
-
-        def method(**args):
-            req = self.obj.submit_form(name, args)
-            obj = self.client.fetch(req)
-            if isinstance(obj, self.client.Response):
-                return Remote(self.client, obj)
-            return obj
-        return method
+        if name in self.obj.metadata.get('forms',()):
+            def method(**args):
+                req = self.obj.submit_form(name, args)
+                obj = self.client.fetch(req)
+                if isinstance(obj, self.client.Response):
+                    return Remote(self.client, obj)
+                return obj
+            return method
+        raise Exception('no')
 
 def open(endpoint):
     c = Client()

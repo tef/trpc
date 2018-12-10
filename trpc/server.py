@@ -91,9 +91,7 @@ class App:
         if method == 'GET':
             raise HTTPResponse('405 not allowed', (), 'no')
         elif method == 'POST':
-            print(data)
             data = self.unwrap_request(data)
-            print(data)
             if not data: data = {}
             return func(**data)
         
@@ -189,10 +187,6 @@ class App:
        if name != '__main__':
            return
 
-       class _CLI(CLI):
-           def run(self, argv, environ):
-               pass
-
        argv = list()
        for arg in sys.argv[1:]:
            if arg.startswith('--port='):
@@ -201,21 +195,22 @@ class App:
                argv.append(arg)
 
        s = WSGIServer(self, port=port, request_handler=WSGIRequestHandler)
-       s.start()
-
-       environ = dict(os.environ)
-       environ['TRPC_URL'] = s.url
-
-       client = Client()
-
-       _CLI(client).main(argv, environ)
-
-       print()
-       print(s.url)
-       print('Press ^C to exit')
-
        try:
-           while True: pass
+           s.start()
+
+           environ = dict(os.environ)
+           environ['TRPC_URL'] = s.url
+
+           client = Client()
+           if argv:
+               CLI(client).main(argv, environ)
+           else:
+               print()
+               print(s.url)
+               print('Press ^C to exit')
+
+               while True:
+                   pass
        except KeyboardInterrupt:
            pass
        finally:

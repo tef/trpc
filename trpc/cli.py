@@ -36,7 +36,7 @@ class CLI:
         pass
 
     def run(self, argv, environ):
-        endpoint = os.environ.get("TRPC_URL", "")
+        endpoint = environ.get("TRPC_URL", "")
 
         if not endpoint:
             print("Set TRPC_URL first", file=sys.stderr)
