@@ -161,30 +161,52 @@ class Client:
                 headers={'Content-Type': CONTENT_TYPE},
             )
         
+    class Response:
+        def __init__(self, base_url, kind, apiVersion, metadata, fields):
+            self.base_url = base_url
+            self.kind = kind
+            self.apiVersion = apiVersion
+            self.metadata = metadata
+            self.fields = fields
 
-    class Namespace:
-        def __init__(self, obj, build_request):
-            self.members = obj['members']
 
-    class Service:
-        def __init__(self, obj, build_request):
-            self._obj = obj
-                
+        def __repr__(self):
+            return self.kind
+
+        def open_link(self, name):
+            links = self.metadata['links']
+            if name not in links:
+                raise Exception(name)
+
+            url = urljoin(self.base_url, name) + "/"
+
+            return Client.Request('GET', url, None)
+
+        def submit_form(self, name, args):
+            links = self.metadata['links']
+            forms = self.metadata['forms']
+            if name not in forms:
+                if name in links:
+                    url = urljoin(self.base_url, name)
+                    return Client.Request('GET', url, None)
+                raise Exception(name)
+
+            url = urljoin(self.base_url, name)
+            return Client.Request('POST', url, args)
+
     def urllib_request(self, verb, request):
         if isinstance(request, str):
             request = self.Request(verb, request, None)
         return request.urllib_request()
 
     def build_response(self, base_url, obj):
-        def build_request(method, url, data):
-            url = urljoin(base_url, url)
-            return self.Request(method, url, data)
-        if obj['kind'] == 'Response':
+        kind = obj.pop('kind')
+        if kind == 'Response':
             return obj['value']
-        if obj['kind'] == 'Namespace':
-            return self.Namespace(obj, build_request)
-        if obj['kind'] == 'Service':
-            return self.Namespace(obj, build_request)
+        apiVersion = obj.pop('apiVersion')
+        metadata = obj.pop('metadata')
+
+        return self.Response(base_url, kind, apiVersion, metadata, obj)
 
     def unwrap_response(self, fh):
         base_url = fh.url
@@ -195,6 +217,10 @@ class Client:
             base_url = fh.url
             obj = json.load(fh)
             return base_url, obj
+
+    def invoke(self, page, name, args):
+        pass
+        
 
     def navigate(self, endpoint, path):
         request = self.urllib_request('GET', endpoint)
@@ -260,7 +286,8 @@ class App:
             raise HTTPResponse('405 not allowed', (), 'no')
         elif method == 'POST':
             data = self.unwrap_request(data)
-            return fn(**data)
+            if not data: data = {}
+            return func(**data)
         
         raise HTTPResponse('405 not allowed', (), 'no')
 
@@ -274,7 +301,7 @@ class App:
                     methods[name] = funcargs(m)
             return objects.Service(second, links=(), forms=methods) 
         else:
-            attr = getattr(item, second)
+            attr = getattr(service, second)
             return self.handle_func(attr, method, prefix+"/"+second, tail, data)
 
 
@@ -421,17 +448,16 @@ class CLI:
 
         mode, path, args = self.parse(argv, environ)
 
-
-        obj = self.client.navigate(endpoint, path[:-1])
-
+        obj = self.client.fetch(endpoint)
+        for p in path[:-1]:
+            obj = self.client.fetch(obj.open_link(p))
+    
+        if path:
+            if mode == 'call':
+                req = obj.submit_form(path[-1], args)
+                obj = self.client.call(req) 
         print(obj)
         return
-        links = obj['metadata']['links']
-        forms = obj['metadata']['forms']
-
-        
-
-
 
     def parse(self, argv, environ):
         mode = "call"
