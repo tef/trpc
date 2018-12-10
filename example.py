@@ -1,12 +1,17 @@
-from trpc import App, Model, Service
+from trpc import App, Service, rpc
 
 class Example(Service):
     @rpc()
     def hello():
         return "world"
 
+@rpc()
+def lie():
+    return "everything is fine"
+
 namespace = {
-    'Example': Example
+    'Example': Example,
+    'lie': lie,
 }
 
 app = App(namespace) # WSGI App
