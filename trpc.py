@@ -20,7 +20,7 @@ def funcargs(m):
     if args and args[0] == 'self': args.pop(0)
     return args
 
-class Server(threading.Thread):
+class WSGIServer(threading.Thread):
     class QuietWSGIRequestHandler(WSGIRequestHandler):
         def log_request(self, code='-', size='-'):
             pass
@@ -144,22 +144,6 @@ class Client:
             self.verb = verb
             self.url = url
             self.data = data
-
-        def urllib_request(self):
-            data = self.data
-            if data is None:
-                data = ""
-            else:
-                content_type, data = objects.Request(data).encode()
-
-            data = data.encode('utf8')
-
-            return urllib.request.Request(
-                url=self.url,
-                data=data,
-                method=self.verb,
-                headers={'Content-Type': CONTENT_TYPE},
-            )
         
     class Response:
         def __init__(self, base_url, kind, apiVersion, metadata, fields):
@@ -194,12 +178,26 @@ class Client:
             url = urljoin(self.base_url, name)
             return Client.Request('POST', url, args)
 
-    def urllib_request(self, verb, request):
-        if isinstance(request, str):
-            request = self.Request(verb, request, None)
-        return request.urllib_request()
+    def raw_fetch(self, request):
+        data = request.data
+        if data is None:
+            data = ""
+        else:
+            content_type, data = objects.Request(data).encode()
 
-    def build_response(self, base_url, obj):
+        data = data.encode('utf8')
+
+        urllib_request= urllib.request.Request(
+            url=request.url,
+            data=data,
+            method=request.verb,
+            headers={'Content-Type': CONTENT_TYPE},
+        )
+
+        with urllib.request.urlopen(urllib_request) as fh:
+            base_url = fh.url
+            obj = json.load(fh)
+
         kind = obj.pop('kind')
         if kind == 'Response':
             return obj['value']
@@ -208,46 +206,19 @@ class Client:
 
         return self.Response(base_url, kind, apiVersion, metadata, obj)
 
-    def unwrap_response(self, fh):
-        base_url = fh.url
-        obj = json.load(fh)
 
-    def rawfetch(self, request):
-        with urllib.request.urlopen(request) as fh:
-            base_url = fh.url
-            obj = json.load(fh)
-            return base_url, obj
-
-    def invoke(self, page, name, args):
-        pass
-        
-
-    def navigate(self, endpoint, path):
-        request = self.urllib_request('GET', endpoint)
-        base_url, obj = self.rawfetch(request)
-
-        for p in path:
-            links = obj['metadata']['links']
-            if p not in links:
-                raise Exception(p)
-
-            url = urljoin(base_url, p)
-
-            request = self.urllib_request('GET', url)
-            base_url, obj = self.rawfetch(request)
-
-        return obj
-
+    def make_request(self, verb, request):
+        if isinstance(request, str):
+            request = self.Request(verb, request, None)
+        return request
 
     def fetch(self, request):
-        r = self.urllib_request('GET', request)
-        base_url, obj = self.rawfetch(r)
-        return self.build_response(base_url, obj)
+        r = self.make_request('GET', request)
+        return self.raw_fetch(r)
 
     def call(self, request):
-        r = self.urllib_request('POST', request)
-        base_url, obj = self.rawfetch(r)
-        return self.build_response(base_url, obj)
+        r = self.make_request('POST', request)
+        return self.raw_fetch(r)
 
     def list(self, request):
         pass
@@ -385,7 +356,7 @@ class App:
            else:
                argv.append(arg)
 
-       s = Server(self, port=port, request_handler=WSGIRequestHandler)
+       s = WSGIServer(self, port=port, request_handler=WSGIRequestHandler)
        s.start()
 
        environ = dict(os.environ)
@@ -450,12 +421,12 @@ class CLI:
 
         obj = self.client.fetch(endpoint)
         for p in path[:-1]:
-            obj = self.client.fetch(obj.open_link(p))
+            obj = self.client.raw_fetch(obj.open_link(p))
     
         if path:
             if mode == 'call':
                 req = obj.submit_form(path[-1], args)
-                obj = self.client.call(req) 
+                obj = self.client.raw_fetch(req) 
         print(obj)
         return
 
