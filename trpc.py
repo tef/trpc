@@ -202,18 +202,41 @@ class App:
             start_response(status, response_headers, sys.exc_info())
             return [traceback.format_exc().encode('utf8')]
 
-    def automain(self, name):
-       if name == '__main__':
-            port = int(sys.argv[1]) if sys.argv[1:] else 1729
-            s = Server(self, port=port)
-            s.start()
-            print(s.url)
-            try:
-                while True: pass
-            except KeyboardInterrupt:
-                pass
-            finally:
-                s.stop()
+    def automain(self, name, port=1729):
+       if name != '__main__':
+           return
+
+       class _CLI(CLI):
+           def run(self, argv, environ):
+               pass
+
+       argv = list()
+       for arg in sys.argv[1:]:
+           if arg.startswith('--port='):
+               port = int(arg[7:])
+           else:
+               argv.append(arg)
+
+       s = Server(self, port=port, request_handler=WSGIRequestHandler)
+       s.start()
+
+       environ = dict(os.environ)
+       environ['TRPC_URL'] = s.url
+
+       client = Client()
+
+       _CLI(client).main(argv, environ)
+
+       print()
+       print(s.url)
+       print('Press ^C to exit')
+
+       try:
+           while True: pass
+       except KeyboardInterrupt:
+           pass
+       finally:
+           s.stop()
 
 
 class Client:
@@ -308,7 +331,11 @@ class CLI:
                 print(o)
             sys.exit(0)
 
+        self.run(argv, environ)
+
+    def run(self, argv, environ):
         endpoint = os.environ.get("TRPC_URL", "")
+
         if not endpoint:
             print("Set TRPC_URL first", file=sys.stderr)
             sys.exit(-1)

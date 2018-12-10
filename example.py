@@ -9,7 +9,7 @@ namespace = {
     'Example': Example
 }
 
-app = App(namespace)
+app = App(namespace) # WSGI App
 
 app.automain(__name__)
 
