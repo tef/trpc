@@ -43,9 +43,9 @@ class HTTPRequest:
     def unwrap_arguments(self):
         if self.data is None:
             return
-        request = json.loads(self.data)
-        if request['kind'] == 'Request':
-            return request['arguments']
+        data = json.loads(self.data.decode('utf-8'))
+        if data['kind'] == 'Request':
+            return data['arguments']
 
 class App:
     def __init__(self, name, namespace):
@@ -54,13 +54,13 @@ class App:
 
     def handle_func(self, func, prefix, tail, request):
         if request.method == 'GET':
-            raise HTTPResponse('405 not allowed', (), 'no')
+            raise HTTPResponse('405 not allowed', (), [b'no'])
         elif request.method == 'POST':
             data = request.unwrap_arguments()
             if not data: data = {}
             return func(**data)
         
-        raise HTTPResponse('405 not allowed', (), 'no')
+        raise HTTPResponse('405 not allowed', (), [b'no'])
 
     def handle_service(self, service,  prefix, tail, request):
         second = tail.split('/',1)
@@ -81,64 +81,64 @@ class App:
             return self.handle_func(obj, prefix, tail, request)
         elif isinstance(obj, type) and issubclass(obj, Service):
             return self.handle_service(obj, prefix, tail, request)
-
-    def handle(self, request):
-        first = request.path.split('/',1)
+    
+    def handle_namespace(self, obj, prefix, tail, request):
+        first = tail.split('/',1)
         first, tail = first[0], (first[1] if first[1:] else "")
 
         if not first:
             links = []
             forms = {}
-            for key, value in self.namespace.items():
+            for key, value in obj.items():
                 if isinstance(value, types.FunctionType):
                     forms[key] = funcargs(value)
                 elif isinstance(value, type) and issubclass(value, Service):
                     links.append(key)
-            out = objects.Namespace(name=self.name, links=links, forms=forms)
-            return out.encode()
+            return objects.Namespace(name=self.name, links=links, forms=forms)
         else:
             item = self.namespace.get(first)
             if not item:
-                raise HTTPResponse('404 not found', (), 'no')
+                raise HTTPResponse('404 not found', (), [b'no'])
 
-            out = self.handle_object(item, first, tail, request)
+            return self.handle_object(item, first, tail, request)
 
-            if not isinstance(out, objects.Wire):
-                out = objects.Response(out)
-                
-            return out.encode()
+    def handle(self, request):
+        out = self.handle_namespace(self.namespace, '/', request.path.lstrip('/'), request)
+
+        if not isinstance(out, objects.Wire):
+            out = objects.Response(out)
+    
+        content_type, data = out.encode()
+        status = "200 Adequate"
+        headers = [("content-type", objects.CONTENT_TYPE)]
+        body = [data.encode('utf-8'), b'\n']
+        return HTTPResponse(status, headers, body)
 
     def __call__(self, environ, start_response):
         try:
             method = environ.get('REQUEST_METHOD', '')
             prefix = environ.get('SCRIPT_NAME', '')
-            path = environ.get('PATH_INFO', '').lstrip('/')
+            path = environ.get('PATH_INFO', '')
             parameters = parse_qsl(environ.get('QUERY_STRING', ''))
 
             content_length = environ['CONTENT_LENGTH']
             if content_length:
                 data = environ['wsgi.input'].read(int(content_length))
-                if data:
-                    data = data.decode('utf-8')
-                else:
+                if not data:
                     data = None
             else:
                 data = None
             headers = {name[5:].lower():value for name, value in environ.items() if name.startswith('HTTP_')}
 
             try:
-                r = HTTPRequest(method, path, parameters, headers, data)
-                content_type, response = self.handle(r)
-                status = "200 Adequate"
-                response_headers = [("content-type", content_type)]
-                response = [response.encode('utf-8'), b'\n']
-            except HTTPResponse as r:
-                status = r.status
-                response_headers = r.headers
-                response = [ r.body.encode('utf-8') ]
+                request = HTTPRequest(method, path, parameters, headers, data)
+                response = self.handle(request)
 
-            start_response(status, response_headers)
-            return response
+            except HTTPResponse as r:
+                response = r
+
+            start_response(response.status, response.headers)
+            return response.body
         except (StopIteration, GeneratorExit, SystemExit, KeyboardInterrupt):
             raise
         except Exception as e:
