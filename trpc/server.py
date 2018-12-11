@@ -48,9 +48,9 @@ class HTTPRequest:
             return data['arguments']
 
 class App:
-    def __init__(self, name, namespace):
-        self.namespace = namespace
+    def __init__(self, name, root):
         self.name = name
+        self.root = root
 
     def handle_func(self, func, prefix, tail, request):
         if request.method == 'GET':
@@ -113,7 +113,7 @@ class App:
             return self.handle_object(first, item, prefix+'/'+first, tail, request)
 
     def handle(self, request):
-        out = self.handle_namespace(self.name, self.namespace, '', request.path.lstrip('/'), request)
+        out = self.handle_object(self.name, self.root, '', request.path.lstrip('/'), request)
 
         if not isinstance(out, objects.Wire):
             out = objects.Response(out)

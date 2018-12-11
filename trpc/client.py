@@ -93,20 +93,23 @@ class Remote:
         self.client = client
         self.obj = response
 
+    def unwrap(self, obj):
+        if isinstance(obj, self.client.HTTPResponse):
+            if obj.kind == 'Response':
+                return obj.fields['value']
+            return Remote(self.client, obj)
+        return obj
+
     def __getattr__(self, name):
         if name in self.obj.metadata.get('links',()):
             req = self.obj.open_link(name)
             obj = self.client.fetch(req)
-            if isinstance(obj, self.client.HTTPResponse):
-                return Remote(self.client, obj)
-            return obj
+            return self.unwrap(obj)
         if name in self.obj.metadata.get('forms',()):
             def method(**args):
                 req = self.obj.submit_form(name, args)
                 obj = self.client.fetch(req)
-                if isinstance(obj, self.client.HTTPResponse):
-                    return Remote(self.client, obj)
-                return obj
+                return self.unwrap(obj)
             return method
         raise Exception('no')
 
