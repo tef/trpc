@@ -38,6 +38,14 @@ class Client:
 
             return Client.HTTPRequest('GET', url, None)
 
+        def has_link(self, name):
+            if 'links' in self.metadata:
+                return name in self.metadata['links']
+
+        def has_form(self, name):
+            if 'forms' in self.metadata:
+                return name in self.metadata['forms']
+
         def submit_form(self, name, args):
             links = self.metadata['links']
             forms = self.metadata['forms']

@@ -50,14 +50,20 @@ class CLI:
             obj = self.client.fetch(obj.open_link(p))
     
         if path:
-            if mode == 'call':
-                req = obj.submit_form(path[-1], dict(args))
+            name = path[-1]
+            if mode == None or mode == 'call':
+                if obj.has_link(name) and not args:
+                    req = obj.open_link(path[-1])
+                elif obj.has_form(name):
+                    req = obj.submit_form(path[-1], dict(args))
+                else:
+                    raise Exception(name)
                 obj = self.client.fetch(req) 
         print(obj)
         return
 
     def parse(self, argv, environ):
-        mode = "call"
+        mode = None
         if argv and argv[0] in self.MODES:
             mode = argv.pop(0)
 
