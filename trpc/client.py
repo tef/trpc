@@ -34,7 +34,7 @@ class Client:
             if name not in links:
                 raise Exception(name)
 
-            url = urljoin(self.base_url, name) + "/"
+            url = urljoin(self.base_url, name) # + "/"
 
             return Client.HTTPRequest('GET', url, None)
 

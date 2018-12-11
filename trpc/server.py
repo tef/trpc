@@ -60,12 +60,15 @@ class App:
             if not data: data = {}
             return func(**data)
         
-        raise HTTPResponse('405 not allowed', (), [b'no'])
+        raise HTTPResponse('405 not allowed', [], [b'no'])
 
     def handle_service(self, service,  prefix, tail, request):
         second = tail.split('/',1)
         second, tail = second[0], (second[1] if second[1:] else "")
         if not second:
+            if request.path[-1] != '/':
+                raise HTTPResponse('303 put a / on the end', [('Location', prefix+'/')], [])
+
             methods = {}
             for name, m in service.__dict__.items():
                 if getattr(m, '__rpc__', not name.startswith('_')):
