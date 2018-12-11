@@ -42,37 +42,36 @@ class HTTPResponse(Exception):
         self.body = body
 
 class HTTPRequest:
-    def __init__(self, verb, url, params, headers, body):
-        self.verb = verb
-        self.url = url
+    def __init__(self, method, path, params, headers, data):
+        self.method = method
+        self.path = path
         self.params = params
         self.headers = headers
-        self.body = body
+        self.data = data
+
+    def unwrap_arguments(self):
+        if self.data is None:
+            return
+        request = json.loads(self.data)
+        if request['kind'] == 'Request':
+            return request['arguments']
 
 class App:
     def __init__(self, name, namespace):
         self.namespace = namespace
         self.name = name
 
-    def unwrap_request(self, request):
-        if request is None:
-            return
-        request = json.loads(request)
-        if request['kind'] == 'Request':
-            return request['arguments']
-
-
-    def handle_func(self, func,  method, prefix, tail, data):
-        if method == 'GET':
+    def handle_func(self, func, prefix, tail, request):
+        if request.method == 'GET':
             raise HTTPResponse('405 not allowed', (), 'no')
-        elif method == 'POST':
-            data = self.unwrap_request(data)
+        elif request.method == 'POST':
+            data = request.unwrap_arguments()
             if not data: data = {}
             return func(**data)
         
         raise HTTPResponse('405 not allowed', (), 'no')
 
-    def handle_service(self, service, method, prefix, tail, data):
+    def handle_service(self, service,  prefix, tail, request):
         second = tail.split('/',1)
         second, tail = second[0], (second[1] if second[1:] else "")
         if not second:
@@ -83,18 +82,17 @@ class App:
             return objects.Service(second, links=(), forms=methods) 
         else:
             attr = getattr(service, second)
-            return self.handle_func(attr, method, prefix+"/"+second, tail, data)
+            return self.handle_func(attr, prefix+"/"+second, tail, request)
 
 
-    def handle_object(self, obj, method, prefix, tail, data):
+    def handle_object(self, obj,  prefix, tail, request):
         if isinstance(obj, types.FunctionType):
-            return self.handle_func(obj, method, prefix, tail, data)
+            return self.handle_func(obj, prefix, tail, request)
         elif isinstance(obj, type) and issubclass(obj, Service):
-            return self.handle_service(obj, method, prefix, tail, data)
+            return self.handle_service(obj, prefix, tail, request)
 
-    def handle(self, method, path, data):
-
-        first = path.split('/',1)
+    def handle(self, request):
+        first = request.path.split('/',1)
         first, tail = first[0], (first[1] if first[1:] else "")
 
         if not first:
@@ -112,7 +110,7 @@ class App:
             if not item:
                 raise HTTPResponse('404 not found', (), 'no')
 
-            out = self.handle_object(item, method, first, tail, data)
+            out = self.handle_object(item, first, tail, request)
 
             if not isinstance(out, objects.Wire):
                 out = objects.Response(out)
@@ -135,9 +133,11 @@ class App:
                     data = None
             else:
                 data = None
+            headers = {name[5:].lower():value for name, value in environ.items() if name.startswith('HTTP_')}
 
             try:
-                content_type, response = self.handle(method, path, data)
+                r = HTTPRequest(method, path, parameters, headers, data)
+                content_type, response = self.handle(r)
                 status = "200 Adequate"
                 response_headers = [("content-type", content_type)]
                 response = [response.encode('utf-8'), b'\n']
