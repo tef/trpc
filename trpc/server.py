@@ -103,10 +103,10 @@ class App:
             if not item:
                 raise HTTPResponse('404 not found', (), [b'no'])
 
-            return self.handle_object(item, first, tail, request)
+            return self.handle_object(item, prefix+'/'+first, tail, request)
 
     def handle(self, request):
-        out = self.handle_namespace(self.namespace, '/', request.path.lstrip('/'), request)
+        out = self.handle_namespace(self.namespace, '', request.path.lstrip('/'), request)
 
         if not isinstance(out, objects.Wire):
             out = objects.Response(out)
