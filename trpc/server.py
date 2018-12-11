@@ -1,22 +1,13 @@
 import types
-import socket
 import traceback
-import urllib.request
 import sys
 import os
 import json
-import shlex
-import threading
 import inspect
 
 from urllib.parse import urljoin, urlencode, parse_qsl
-from wsgiref.simple_server import make_server, WSGIRequestHandler
 
-from . import objects
-from .cli import CLI
-from .client import Client
-
-CONTENT_TYPE = objects.CONTENT_TYPE
+from . import objects, client, cli, wsgi
 
 def funcargs(m):
     signature = inspect.signature(m)
@@ -169,16 +160,16 @@ class App:
            else:
                argv.append(arg)
 
-       s = WSGIServer(self, port=port, request_handler=WSGIRequestHandler)
+       s = wsgi.WSGIServer(self, port=port, request_handler=wsgi.WSGIRequestHandler)
        try:
            s.start()
 
            environ = dict(os.environ)
            environ['TRPC_URL'] = s.url
 
-           client = Client()
+           c = client.Client()
            if argv:
-               CLI(client).main(argv, environ)
+               cli.CLI(c).main(argv, environ)
            else:
                print()
                print(s.url)
@@ -190,38 +181,4 @@ class App:
            pass
        finally:
            s.stop()
-
-class WSGIServer(threading.Thread):
-    class QuietWSGIRequestHandler(WSGIRequestHandler):
-        def log_request(self, code='-', size='-'):
-            pass
-
-    def __init__(self, app, host="", port=0, request_handler=QuietWSGIRequestHandler):
-        threading.Thread.__init__(self)
-        self.daemon=True
-        self.running = True
-        self.server = make_server(host, port, app,
-            handler_class=request_handler)
-
-    @property
-    def url(self):
-        return u'http://%s:%d/'%(self.server.server_name, self.server.server_port)
-
-    def run(self):
-        self.running = True
-        while self.running:
-            self.server.handle_request()
-
-    def stop(self):
-        self.running =False
-        if self.server and self.is_alive():
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect(self.server.socket.getsockname()[:2])
-                s.send(b'\r\n')
-                s.close()
-            except IOError:
-                import traceback
-                traceback.print_exc()
-        self.join(5)
 

@@ -1,6 +1,7 @@
 import traceback
 import sys
 import os
+import shlex
 
 class CLI:
     MODES = set((
@@ -19,7 +20,6 @@ class CLI:
             # Bash Line Completion.
             line, offset =  environ['COMP_LINE'], int(environ['COMP_POINT'])
             try:
-                import shlex
                 prefix = shlex.split(line[:offset])
                 # if there's mismatched ''s bail
             except ValueError:
