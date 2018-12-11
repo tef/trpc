@@ -79,17 +79,21 @@ class App:
             return self.handle_func(attr, prefix+"/"+second, tail, request)
 
 
-    def handle_object(self, obj,  prefix, tail, request):
+    def handle_object(self, name, obj,  prefix, tail, request):
         if isinstance(obj, types.FunctionType):
             return self.handle_func(obj, prefix, tail, request)
         elif isinstance(obj, type) and issubclass(obj, Service):
             return self.handle_service(obj, prefix, tail, request)
+        elif isinstance(obj, dict):
+            return self.handle_namespace(name, obj, prefix, tail, request)
     
-    def handle_namespace(self, obj, prefix, tail, request):
+    def handle_namespace(self, name,  obj, prefix, tail, request):
         first = tail.split('/',1)
         first, tail = first[0], (first[1] if first[1:] else "")
 
         if not first:
+            if request.path[-1] != '/':
+                raise HTTPResponse('303 put a / on the end', [('Location', prefix+'/')], [])
             links = []
             forms = {}
             for key, value in obj.items():
@@ -97,16 +101,19 @@ class App:
                     forms[key] = funcargs(value)
                 elif isinstance(value, type) and issubclass(value, Service):
                     links.append(key)
-            return objects.Namespace(name=self.name, links=links, forms=forms)
+                elif isinstance(value, dict):
+                    links.append(key)
+
+            return objects.Namespace(name=name, links=links, forms=forms)
         else:
-            item = self.namespace.get(first)
+            item = obj.get(first)
             if not item:
                 raise HTTPResponse('404 not found', (), [b'no'])
 
-            return self.handle_object(item, prefix+'/'+first, tail, request)
+            return self.handle_object(first, item, prefix+'/'+first, tail, request)
 
     def handle(self, request):
-        out = self.handle_namespace(self.namespace, '', request.path.lstrip('/'), request)
+        out = self.handle_namespace(self.name, self.namespace, '', request.path.lstrip('/'), request)
 
         if not isinstance(out, objects.Wire):
             out = objects.Response(out)

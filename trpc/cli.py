@@ -59,7 +59,14 @@ class CLI:
                 else:
                     raise Exception(name)
                 obj = self.client.fetch(req) 
-        print(obj)
+        if obj.kind == 'Response':
+            print(obj.fields['value'])
+        else:
+            print(obj.kind)
+            for link in obj.metadata.get('links', ()):
+                print(link)
+            for form in obj.metadata.get('forms', ()):
+                print(form)
         return
 
     def parse(self, argv, environ):

@@ -82,8 +82,6 @@ class Client:
             obj = json.load(fh)
 
         kind = obj.pop('kind')
-        if kind == 'Response':
-            return obj['value']
         apiVersion = obj.pop('apiVersion')
         metadata = obj.pop('metadata')
 

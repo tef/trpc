@@ -8,9 +8,15 @@ class Example(Service):
 def nice(person):
     return False
 
+def report():
+    return [1,2,3]
+
 namespace = {
     'Example': Example,
     'nice': nice,
+    'nested': {
+        'report': report,
+    },
 }
 
 app = App('example', namespace) # WSGI App
