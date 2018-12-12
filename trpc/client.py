@@ -64,17 +64,15 @@ class Session:
 
         data = request.data
         if data is None:
-            data = ""
+            data = b""
         else:
             content_type, data = objects.Request(data).encode()
-
-        data = data.encode('utf8')
 
         urllib_request= urllib.request.Request(
             url=request.url,
             data=data,
             method=request.verb,
-            headers={'Content-Type': objects.CONTENT_TYPE},
+            headers={'Content-Type': objects.CONTENT_TYPE, 'Accept': objects.CONTENT_TYPE},
         )
 
         with urllib.request.urlopen(urllib_request) as fh:

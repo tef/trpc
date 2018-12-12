@@ -2,7 +2,6 @@ import types
 import traceback
 import sys
 import os
-import json
 import inspect
 
 from urllib.parse import urljoin, urlencode, parse_qsl
@@ -21,27 +20,6 @@ def rpc():
         fn.__rpc__ = True
         return fn
     return _decorate
-
-class HTTPResponse(Exception):
-    def __init__(self, status, headers, body):
-        self.status = status
-        self.headers = headers or []
-        self.body = body
-
-class HTTPRequest:
-    def __init__(self, method, path, params, headers, data):
-        self.method = method
-        self.path = path
-        self.params = params
-        self.headers = headers
-        self.data = data
-
-    def unwrap_arguments(self):
-        if self.data is None:
-            return
-        data = json.loads(self.data.decode('utf-8'))
-        if data['kind'] == 'Request':
-            return data['arguments']
 
 class Service:
     def __init__(self, app, route, request):
@@ -84,6 +62,26 @@ class Route:
 
     def advance(self):
         return Route(self.request, self.path, self.index+1)
+
+class HTTPResponse(Exception):
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers or []
+        self.body = body
+
+class HTTPRequest:
+    def __init__(self, method, path, params, headers, content_type, data):
+        self.method = method
+        self.path = path
+        self.params = params
+        self.headers = headers
+        self.content_type = content_type
+        self.data = data
+
+    def unwrap_arguments(self):
+        data = objects.decode(self.data, self.content_type)
+        if data and data['kind'] == 'Request':
+            return data['arguments']
 
 class App:
     def __init__(self, name, root):
@@ -137,14 +135,12 @@ class App:
         route = Route(request, request.path.lstrip('/').split('/'), 0)
         out = self.handle(self.name, self.root, route, request)
 
-        if not isinstance(out, objects.Wire):
-            out = objects.Object(out)
-    
-        content_type, data = out.encode()
+        accept = request.headers.get('accept', objects.CONTENT_TYPE).split(',')
+
+        content_type, data = objects.encode(out, accept)
         status = "200 Adequate"
-        headers = [("content-type", objects.CONTENT_TYPE)]
-        body = [data.encode('utf-8'), b'\n']
-        return HTTPResponse(status, headers, body)
+        headers = [("content-type", content_type)]
+        return HTTPResponse(status, headers, [data])
 
     def __call__(self, environ, start_response):
         try:
@@ -153,7 +149,8 @@ class App:
             path = environ.get('PATH_INFO', '')
             parameters = parse_qsl(environ.get('QUERY_STRING', ''))
 
-            content_length = environ['CONTENT_LENGTH']
+            content_length = environ.get('CONTENT_LENGTH','')
+            content_type = environ.get('CONTENT_TYPE','')
             if content_length:
                 data = environ['wsgi.input'].read(int(content_length))
                 if not data:
@@ -163,7 +160,7 @@ class App:
             headers = {name[5:].lower():value for name, value in environ.items() if name.startswith('HTTP_')}
 
             try:
-                request = HTTPRequest(method, path, parameters, headers, data)
+                request = HTTPRequest(method, path, parameters, headers, content_type, data)
                 response = self.handle_request(request)
 
             except HTTPResponse as r:

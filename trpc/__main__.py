@@ -4,6 +4,6 @@ import os
 from . import client, cli
 
 if __name__ == '__main__':
-    client = client.Client()
-    cli = cli.CLI(client)
+    session = client.Session()
+    cli = cli.CLI(session)
     cli.main(sys.argv[1:], os.environ)

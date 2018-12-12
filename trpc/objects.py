@@ -19,6 +19,18 @@ import json
 
 CONTENT_TYPE = "application/trpc+json"
 
+def decode(data, content_type):
+    if not data:
+        return None
+    if content_type == CONTENT_TYPE:
+        return json.loads(data.decode('utf-8'))
+
+def encode(out, accept):
+    if not isinstance(out, Wire):
+        out = Object(out)
+    
+    return out.encode()
+
 class Wire:
     fields = () # top level field names
     metadata = () # metadata field names
@@ -28,15 +40,18 @@ class Wire:
     def kind(self):
         return self.__class__.__name__
 
-    def encode(self):
+
+    def encode(self, accept=None):
         fields = {k:getattr(self, k) for k in self.fields}
         metadata = {k:getattr(self, k) for k in self.metadata}
-        return CONTENT_TYPE, json.dumps(dict(
+        data = json.dumps(dict(
             kind=self.kind,
             apiVersion=self.apiVersion,
             metadata={} if not metadata else metadata,
             **fields
         ))
+
+        return CONTENT_TYPE, data.encode('utf-8')
 
 
 
