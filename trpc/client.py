@@ -35,7 +35,9 @@ class Session:
             if name not in links:
                 raise Exception(name)
 
-            url = urljoin(self.base_url, name) # + "/"
+            url = self.metadata['urls'].get(name, name)
+
+            url = urljoin(self.base_url, url)
 
             cached = self.metadata.get('embeds',{}).get(name)
             print(name, cached, self.metadata['embeds'])
@@ -55,7 +57,8 @@ class Session:
             forms = self.metadata['forms']
             if name not in forms:
                 if name in links:
-                    url = urljoin(self.base_url, name)
+                    url = self.metadata['urls'].get(name, name)
+                    url = urljoin(self.base_url, url)
                     return Session.APIRequest('GET', url, None)
                 raise Exception(name)
 
@@ -85,7 +88,7 @@ class Session:
                 base_url = fh.url
                 obj = json.load(fh)
         else:
-            base_url = request.url + '/' # haaack
+            base_url = request.url
 
         kind = obj.pop('kind')
         apiVersion = obj.pop('apiVersion')

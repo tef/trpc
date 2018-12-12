@@ -37,7 +37,7 @@ class Service:
             for name, m in service.__dict__.items():
                 if getattr(m, '__rpc__', not name.startswith('_')):
                     methods[name] = funcargs(m)
-            return objects.Service(second, links=(), forms=methods) 
+            return objects.Service(second, links=(), forms=methods, urls=()) 
         else:
             s = service(app, route, request)
             attr = getattr(s, second)
@@ -95,18 +95,21 @@ class App:
         links = []
         forms = {}
         embeds = {}
+        urls = {}
         for key, value in obj.items():
             if isinstance(value, types.FunctionType):
                 forms[key] = funcargs(value)
             elif isinstance(value, type) and issubclass(value, Service):
                 links.append(key)
+                urls[key] = "{}/".format(key)
             elif isinstance(value, dict):
                 links.append(key)
+                urls[key] = "{}/".format(key)
                 if embed:
                     namespace = self.build_namespace(key, value, embed=embed)
                     embeds[key] = namespace.dump()
 
-        return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds)
+        return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds, urls=urls)
 
     def handle(self, name, obj, route, request):
         if isinstance(obj, dict):

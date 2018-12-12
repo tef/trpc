@@ -56,15 +56,12 @@ class Wire:
         return CONTENT_TYPE, data.encode('utf-8')
 
 
-
-
-
 class Request(Wire):
     apiVersion = 'v0'
     fields = ('arguments',)
     metadata = ()
 
-    def __init__(self, arguments):
+    def __init__(self,  arguments):
         self.arguments = arguments
 
 class Object(Wire):
@@ -78,23 +75,25 @@ class Object(Wire):
 class Service(Wire):
     apiVersion = 'v0'
     fields = ('name',)
-    metadata = ('links','forms', 'embeds')
+    metadata = ('links','forms', 'embeds', 'url')
 
-    def __init__(self, name, links, forms=(), embeds=()):
+    def __init__(self, name, links, forms=(), embeds=(), urls=()):
         self.name = name
         self.links = links
-        self.forms = forms
-        self.embeds = embeds
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
 
 class Namespace(Wire):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('links','forms', 'embeds')
+    metadata = ('links','forms', 'embeds', 'urls')
 
-    def __init__(self, name, links, forms=(), embeds=()):
+    def __init__(self, name, links, forms=(), embeds=(), urls=()):
         self.name = name
         self.links = links
-        self.forms = forms
-        self.embeds = embeds
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
 
 
