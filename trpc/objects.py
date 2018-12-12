@@ -27,7 +27,7 @@ def decode(data, content_type):
 
 def encode(out, accept):
     if not isinstance(out, Wire):
-        out = Object(out)
+        out = Result(out)
     
     return out.encode(accept)
 
@@ -64,13 +64,32 @@ class Request(Wire):
     def __init__(self,  arguments):
         self.arguments = arguments
 
-class Object(Wire):
+
+class Result(Wire):
     apiVersion = 'v0'
     fields = ('value',)
     metadata = ()
 
     def __init__(self, value):
         self.value = value
+
+class ResultSet(Wire):
+    apiVersion = 'v0'
+    fields = ('values',)
+    metadata = ('next',)
+
+    def __init__(self, value, next=None):
+        self.value = value
+        self.next = Next
+
+class Procedure(Wire):
+    apiVersion = 'v0'
+    fields = ('name',)
+    metadata = ('form')
+
+    def __init__(self, name, form=()):
+        self.name = name
+        self.form = form
 
 class Service(Wire):
     apiVersion = 'v0'
@@ -91,6 +110,59 @@ class Namespace(Wire):
 
     def __init__(self, name, links, forms=(), embeds=(), urls=()):
         self.name = name
+        self.links = links
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
+
+class Namespace(Wire):
+    apiVersion = 'v0'
+    fields = ('name', )
+    metadata = ('links','forms', 'embeds', 'urls')
+
+    def __init__(self, name, links, forms=(), embeds=(), urls=()):
+        self.name = name
+        self.links = links
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
+
+class Collection(Wire):
+    apiVersion = 'v0'
+    fields = ('name', )
+    metadata = ('key','indexes', 'fields', 'links','forms','embeds', 'urls')
+
+    def __init__(self, name, key, indexes, fields, links=(), forms=(), embeds=(), urls=()):
+        self.name = name
+        self.key = key
+        self.indexes = indexes
+        self.fields = fields
+        self.links = links
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
+
+class Entry(Wire):
+    apiVersion = 'v0'
+    fields = ('name', )
+    metadata = ('collection', 'links','forms', 'embeds', 'urls')
+
+    def __init__(self, name, collection, links, forms=(), embeds=(), urls=()):
+        self.name = name
+        self.collection = collection
+        self.links = links
+        self.forms = forms or {}
+        self.embeds = embeds or {}
+        self.urls = urls or {}
+
+class EntrySet(Wire):
+    apiVersion = 'v0'
+    fields = ('name', )
+    metadata = ('collection',  'links','forms', 'embeds', 'urls')
+
+    def __init__(self, name, collection, links, forms=(), embeds=(), urls=()):
+        self.name = name
+        self.collection = collection
         self.links = links
         self.forms = forms or {}
         self.embeds = embeds or {}
