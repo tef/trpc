@@ -95,7 +95,7 @@ class Client:
 
     def unwrap(self, obj):
         if isinstance(obj, self.session.APIResponse):
-            if obj.kind == 'Response':
+            if obj.kind == 'Object':
                 return obj.fields['value']
             return Client(self.session, obj)
         return obj

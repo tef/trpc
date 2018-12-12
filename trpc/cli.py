@@ -59,7 +59,7 @@ class CLI:
                 else:
                     raise Exception(name)
                 obj = self.session.fetch(req) 
-        if obj.kind == 'Response':
+        if obj.kind == 'Object':
             print(obj.fields['value'])
         else:
             print(obj.kind)

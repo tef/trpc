@@ -2,8 +2,15 @@ from trpc import App, Service, rpc
 
 class Example(Service):
     @rpc()
-    def hello():
+    def hello(self):
         return "world"
+
+    def echo(self, **args):
+        return {
+            "prefix": self.route.prefix,
+            "head": self.route.head,
+            "args": args,
+        }
 
 def nice(person):
     return False

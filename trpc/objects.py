@@ -48,7 +48,7 @@ class Request(Wire):
     def __init__(self, arguments):
         self.arguments = arguments
 
-class Response(Wire):
+class Object(Wire):
     apiVersion = 'v0'
     fields = ('value',)
     metadata = ()
