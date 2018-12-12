@@ -15,29 +15,41 @@ def funcargs(m):
     if args and args[0] == 'self': args.pop(0)
     return args
 
-def rpc():
+def rpc(expose=True):
     def _decorate(fn):
-        fn.__rpc__ = True
+        fn.__rpc__ = expose
         return fn
     return _decorate
 
-class Service:
+class Endpoint:
+    def handle_trpc_request(app, service, route, request):
+        pass
+
+    def describe_trpc_object(name, service):
+        pass
+
+class Service(Endpoint):
     def __init__(self, app, route, request):
         self.app = app
         self.route = route
         self.request = request
-
+        self.params = dict(request.params)
+    
+    @rpc(expose=False)
+    @staticmethod
     def handle_trpc_request(app, service, route, request):
         second = route.head
         if not second:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return Service.describe_trpc_object(second, service)
+            return service.describe_trpc_object(second, service)
         else:
             s = service(app, route, request)
             attr = getattr(s, second)
             return app.handle_func(attr, route.advance(), request)
 
+    @rpc(expose=False)
+    @staticmethod
     def describe_trpc_object(name, service):
         methods = {}
         for key, m in service.__dict__.items():
@@ -101,7 +113,7 @@ class App:
         for key, value in obj.items():
             if isinstance(value, types.FunctionType):
                 forms[key] = funcargs(value)
-            elif isinstance(value, type) and issubclass(value, Service):
+            elif isinstance(value, type) and issubclass(value, Endpoint):
                 links.append(key)
                 urls[key] = "{}/".format(key)
                 if embed:
@@ -119,7 +131,7 @@ class App:
     def handle(self, name, obj, route, request):
         if isinstance(obj, dict):
             return self.handle_dict(name, obj, route, request)
-        elif isinstance(obj, type) and issubclass(obj, Service):
+        elif isinstance(obj, type) and issubclass(obj, Endpoint):
             return obj.handle_trpc_request(self, obj, route, request)
         elif isinstance(obj, types.FunctionType):
             return self.handle_func(obj, route, request)
