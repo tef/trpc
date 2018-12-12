@@ -29,7 +29,7 @@ def encode(out, accept):
     if not isinstance(out, Wire):
         out = Object(out)
     
-    return out.encode()
+    return out.encode(accept)
 
 class Wire:
     fields = () # top level field names
@@ -41,17 +41,21 @@ class Wire:
         return self.__class__.__name__
 
 
-    def encode(self, accept=None):
+    def dump(self):
         fields = {k:getattr(self, k) for k in self.fields}
         metadata = {k:getattr(self, k) for k in self.metadata}
-        data = json.dumps(dict(
+        return dict(
             kind=self.kind,
             apiVersion=self.apiVersion,
             metadata={} if not metadata else metadata,
             **fields
-        ))
+        )
 
+    def encode(self, accept=None):
+        data = json.dumps(self.dump())
         return CONTENT_TYPE, data.encode('utf-8')
+
+
 
 
 

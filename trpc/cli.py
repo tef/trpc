@@ -30,19 +30,18 @@ class CLI:
                 print(o)
             sys.exit(0)
 
-        self.run(argv, environ)
+        mode, path, args = self.parse(argv, environ)
+        self.run(mode, path, args, environ)
 
     def complete(self, prefix):
         pass
 
-    def run(self, argv, environ):
+    def run(self, mode, path, args, environ):
         endpoint = environ.get("TRPC_URL", "")
 
         if not endpoint:
             print("Set TRPC_URL first", file=sys.stderr)
             sys.exit(-1)
-
-        mode, path, args = self.parse(argv, environ)
 
         obj = self.session.fetch(endpoint)
 

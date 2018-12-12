@@ -89,11 +89,12 @@ class App:
         self.root = root
 
     def schema(self):
-        return self.build_namespace(self.name, self.root)
+        return self.build_namespace(self.name, self.root, embed=True)
 
-    def build_namespace(self, name, obj):
+    def build_namespace(self, name, obj, embed=False):
         links = []
         forms = {}
+        embeds = {}
         for key, value in obj.items():
             if isinstance(value, types.FunctionType):
                 forms[key] = funcargs(value)
@@ -101,8 +102,11 @@ class App:
                 links.append(key)
             elif isinstance(value, dict):
                 links.append(key)
+                if embed:
+                    namespace = self.build_namespace(key, value, embed=embed)
+                    embeds[key] = namespace.dump()
 
-        return objects.Namespace(name=name, links=links, forms=forms)
+        return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds)
 
     def handle(self, name, obj, route, request):
         if isinstance(obj, dict):
@@ -186,18 +190,26 @@ class App:
             return [traceback.format_exc().encode('utf8')]
 
     def automain(self, name, port=1729):
-       if name != '__main__':
-           return
+        if name != '__main__':
+            return
 
-       argv = list()
-       for arg in sys.argv[1:]:
+        if sys.argv[1:] == ['--schema',]:
+            import json
+            schema = self.schema()
+            obj = schema.dump()
+            print(json.dumps(obj, indent=4))
+            return
+
+        argv = list()
+        for arg in sys.argv[1:]:
            if arg.startswith('--port='):
                port = int(arg[7:])
            else:
                argv.append(arg)
 
-       s = wsgi.WSGIServer(self, port=port, request_handler=wsgi.WSGIRequestHandler)
-       try:
+        s = wsgi.WSGIServer(self, port=port, request_handler=wsgi.WSGIRequestHandler)
+
+        try:
            s.start()
 
            environ = dict(os.environ)
@@ -213,8 +225,8 @@ class App:
 
                while True:
                    pass
-       except KeyboardInterrupt:
+        except KeyboardInterrupt:
            pass
-       finally:
+        finally:
            s.stop()
 
