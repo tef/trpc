@@ -5,6 +5,7 @@
 - a generic client api (no stubs!)
 - a generic command line tool
 - schema generation from code
+- a generic server, for databases, too!
 
 It uses JSON and HTTP underneath by default, but doesn't have to.
 
@@ -155,3 +156,6 @@ $ trpc list Model
 - _XXX_
     - it's restful, lol
 
+# Authentication
+
+Yes, that is nice.
