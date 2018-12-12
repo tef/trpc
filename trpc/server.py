@@ -88,10 +88,26 @@ class App:
         self.name = name
         self.root = root
 
+    def schema(self):
+        return self.build_namespace(self.name, self.root)
+
+    def build_namespace(self, name, obj):
+        links = []
+        forms = {}
+        for key, value in obj.items():
+            if isinstance(value, types.FunctionType):
+                forms[key] = funcargs(value)
+            elif isinstance(value, type) and issubclass(value, Service):
+                links.append(key)
+            elif isinstance(value, dict):
+                links.append(key)
+
+        return objects.Namespace(name=name, links=links, forms=forms)
+
     def handle(self, name, obj, route, request):
         if isinstance(obj, dict):
             return self.handle_dict(name, obj, route, request)
-        elif hasattr(obj, 'handle_trpc_request'):
+        elif isinstance(obj, type) and issubclass(obj, Service):
             return obj.handle_trpc_request(self, obj, route, request)
         elif isinstance(obj, types.FunctionType):
             return self.handle_func(obj, route, request)
@@ -112,17 +128,8 @@ class App:
         if not first:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            links = []
-            forms = {}
-            for key, value in obj.items():
-                if isinstance(value, types.FunctionType):
-                    forms[key] = funcargs(value)
-                elif isinstance(value, type) and issubclass(value, Service):
-                    links.append(key)
-                elif isinstance(value, dict):
-                    links.append(key)
-
-            return objects.Namespace(name=name, links=links, forms=forms)
+            
+            return self.build_namespace(name, obj)
         else:
             item = obj.get(first)
             if not item:
