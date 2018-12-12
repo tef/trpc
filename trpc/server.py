@@ -47,12 +47,32 @@ class HTTPRequest:
         if data['kind'] == 'Request':
             return data['arguments']
 
+class Route:
+    def __init__(self, request, path, index):
+        self.request = request
+        self.path = path
+        self.index = index
+
+    @property
+    def prefix(self):
+        return "/"+"/".join(self.path[:self.index])
+
+    @property
+    def head(self):
+        if self.index < len(self.path):
+            return self.path[self.index]
+        else:
+            return ''
+
+    def advance(self):
+        return Route(self.request, self.path, self.index+1)
+
 class App:
     def __init__(self, name, root):
         self.name = name
         self.root = root
 
-    def handle_func(self, func, prefix, tail, request):
+    def handle_func(self, func, route, request):
         if request.method == 'GET':
             raise HTTPResponse('405 not allowed', (), [b'no'])
         elif request.method == 'POST':
@@ -62,12 +82,11 @@ class App:
         
         raise HTTPResponse('405 not allowed', [], [b'no'])
 
-    def handle_service(self, service,  prefix, tail, request):
-        second = tail.split('/',1)
-        second, tail = second[0], (second[1] if second[1:] else "")
+    def handle_service(self, service, route, request):
+        second = route.head
         if not second:
             if request.path[-1] != '/':
-                raise HTTPResponse('303 put a / on the end', [('Location', prefix+'/')], [])
+                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
 
             methods = {}
             for name, m in service.__dict__.items():
@@ -76,24 +95,15 @@ class App:
             return objects.Service(second, links=(), forms=methods) 
         else:
             attr = getattr(service, second)
-            return self.handle_func(attr, prefix+"/"+second, tail, request)
+            return self.handle_func(attr, route.advance(), request)
 
 
-    def handle_object(self, name, obj,  prefix, tail, request):
-        if isinstance(obj, types.FunctionType):
-            return self.handle_func(obj, prefix, tail, request)
-        elif isinstance(obj, type) and issubclass(obj, Service):
-            return self.handle_service(obj, prefix, tail, request)
-        elif isinstance(obj, dict):
-            return self.handle_namespace(name, obj, prefix, tail, request)
-    
-    def handle_namespace(self, name,  obj, prefix, tail, request):
-        first = tail.split('/',1)
-        first, tail = first[0], (first[1] if first[1:] else "")
+    def handle_namespace(self, name,  obj, route, request):
+        first = route.head
 
         if not first:
             if request.path[-1] != '/':
-                raise HTTPResponse('303 put a / on the end', [('Location', prefix+'/')], [])
+                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             links = []
             forms = {}
             for key, value in obj.items():
@@ -110,10 +120,20 @@ class App:
             if not item:
                 raise HTTPResponse('404 not found', (), [b'no'])
 
-            return self.handle_object(first, item, prefix+'/'+first, tail, request)
+            return self.handle_object(first, item, route.advance(), request)
+
+    def handle_object(self, name, obj, route, request):
+        if isinstance(obj, types.FunctionType):
+            return self.handle_func(obj, route, request)
+        elif isinstance(obj, type) and issubclass(obj, Service):
+            return self.handle_service(obj, route, request)
+        elif isinstance(obj, dict):
+            return self.handle_namespace(name, obj, route, request)
+    
 
     def handle(self, request):
-        out = self.handle_object(self.name, self.root, '', request.path.lstrip('/'), request)
+        route = Route(request, request.path.lstrip('/').split('/'), 0)
+        out = self.handle_object(self.name, self.root, route, request)
 
         if not isinstance(out, objects.Wire):
             out = objects.Response(out)

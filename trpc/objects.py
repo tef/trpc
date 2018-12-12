@@ -1,10 +1,10 @@
 """
 wire types:
 
-all wire types are json objects
-must have 'kind', 'apiVersion', 'metadata' field
+all wire types are json objects and must have 'kind', 'apiVersion', 'metadata' fields
 
 kind is built in or java style name
+apiVersion is a string, without any ordering or semantic information defined.
 
 metadata may contain
     'id', 'url' ,'collection'
@@ -12,14 +12,12 @@ metadata may contain
     'selector', 
 
 other top level fields include
-    value values attribute
-    state
+    'value' 'values' 'attributes' 'arguments' 'state'
 
 """
 import json
 
 CONTENT_TYPE = "application/trpc+json"
-
 
 class Wire:
     fields = () # top level field names
