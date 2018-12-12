@@ -1,0 +1,51 @@
+{
+    "kind": "Namespace",
+    "apiVersion": "v0",
+    "metadata": {
+        "links": [
+            "Example",
+            "nested"
+        ],
+        "forms": {
+            "nice": [
+                "person"
+            ]
+        },
+        "embeds": {
+            "Example": {
+                "kind": "Service",
+                "apiVersion": "v0",
+                "metadata": {
+                    "links": [],
+                    "forms": {
+                        "hello": [],
+                        "echo": [
+                            "args"
+                        ]
+                    },
+                    "embeds": {},
+                    "urls": {}
+                },
+                "name": "Example"
+            },
+            "nested": {
+                "kind": "Namespace",
+                "apiVersion": "v0",
+                "metadata": {
+                    "links": [],
+                    "forms": {
+                        "report": []
+                    },
+                    "embeds": {},
+                    "urls": {}
+                },
+                "name": "nested"
+            }
+        },
+        "urls": {
+            "Example": "Example/",
+            "nested": "nested/"
+        }
+    },
+    "name": "example"
+}
