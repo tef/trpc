@@ -103,7 +103,7 @@ The schema is a json file, and describes the namespaces, services, and methods e
 # A model example
 
 - _XXX_ 
- - Peewee handler to map a database table
+    - Peewee handler to map a database table
 
 ```
 $ trpc list Model --where-field=..
@@ -114,7 +114,7 @@ $ trpc delete Model key
 # Instant service, just add database:
 
 - _XXX_
- - Using introspection, creating `Model`s at runtime
+    -  Using introspection, creating `Model`s at runtime
 
 # Pagination 
 
@@ -152,5 +152,6 @@ $ trpc list Model
 
 # How it works?
 
-
+- _XXX_
+    - it's restful, lol
 
