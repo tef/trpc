@@ -12,8 +12,8 @@ class CLI:
         'help', 'error', 'usage', 'complete', 'version'
     ))
 
-    def __init__(self, client):
-        self.client = client
+    def __init__(self, session):
+        self.session = session
 
     def main(self, argv, environ):
         if 'COMP_LINE' in environ and 'COMP_POINT' in environ:
@@ -44,10 +44,10 @@ class CLI:
 
         mode, path, args = self.parse(argv, environ)
 
-        obj = self.client.fetch(endpoint)
+        obj = self.session.fetch(endpoint)
 
         for p in path[:-1]:
-            obj = self.client.fetch(obj.open_link(p))
+            obj = self.session.fetch(obj.open_link(p))
     
         if path:
             name = path[-1]
@@ -58,7 +58,7 @@ class CLI:
                     req = obj.submit_form(path[-1], dict(args))
                 else:
                     raise Exception(name)
-                obj = self.client.fetch(req) 
+                obj = self.session.fetch(req) 
         if obj.kind == 'Response':
             print(obj.fields['value'])
         else:

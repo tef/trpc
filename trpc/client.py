@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlencode
 
 from . import objects
 
-class Client:
+class Session:
     def __init__(self):
         pass
 
@@ -36,7 +36,7 @@ class Client:
 
             url = urljoin(self.base_url, name) # + "/"
 
-            return Client.HTTPRequest('GET', url, None)
+            return Session.HTTPRequest('GET', url, None)
 
         def has_link(self, name):
             if 'links' in self.metadata:
@@ -52,11 +52,11 @@ class Client:
             if name not in forms:
                 if name in links:
                     url = urljoin(self.base_url, name)
-                    return Client.HTTPRequest('GET', url, None)
+                    return Session.HTTPRequest('GET', url, None)
                 raise Exception(name)
 
             url = urljoin(self.base_url, name)
-            return Client.HTTPRequest('POST', url, args)
+            return Session.HTTPRequest('POST', url, args)
 
     def fetch(self, request):
         if isinstance(request, str):
@@ -114,7 +114,7 @@ class Remote:
         raise Exception('no')
 
 def open(endpoint):
-    c = Client()
+    c = Session()
     obj = c.fetch(endpoint)
     return Remote(c, obj)
 

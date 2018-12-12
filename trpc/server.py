@@ -177,9 +177,9 @@ class App:
            environ = dict(os.environ)
            environ['TRPC_URL'] = s.url
 
-           c = client.Client()
+           session = client.Session()
            if argv:
-               cli.CLI(c).main(argv, environ)
+               cli.CLI(session).main(argv, environ)
            else:
                print()
                print(s.url)
