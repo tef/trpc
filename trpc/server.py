@@ -37,16 +37,17 @@ class Service(Endpoint):
     
     @rpc(expose=False)
     @staticmethod
-    def handle_trpc_request(app, service, route, request):
+    def handle_trpc_request(app, name, service, route, request):
         second = route.head
         if not second:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return service.describe_trpc_object(second, service)
+            return service.describe_trpc_object(name, service)
         else:
             s = service(app, route, request)
             attr = getattr(s, second)
-            return app.handle_func(attr, route.advance(), request)
+            if getattr(attr, '__rpc__', not second.startswith('_')):
+                return app.handle(second, attr, route.advance(), request)
 
     @rpc(expose=False)
     @staticmethod
@@ -54,8 +55,50 @@ class Service(Endpoint):
         methods = {}
         for key, m in service.__dict__.items():
             if getattr(m, '__rpc__', not key.startswith('_')):
-                methods[key] = funcargs(m)
+                if isinstance(m, types.FunctionType):
+                    methods[key] = funcargs(m)
         return objects.Service(name, links=(), forms=methods, urls=()) 
+
+class Model(Endpoint):
+    @rpc(expose=False)
+    @staticmethod
+    def handle_trpc_request(app, model, route, request):
+        tail = route.head
+        if not tail:
+            if request.path[-1] != '/':
+                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
+            return service.describe_trpc_object(second, model)
+
+        if tail == 'id':
+            route = route.advance()
+            key = route.head
+            obj = model.get(key)
+            if route.tail:
+                route = route.advance()
+                method = route.head
+            else:
+                pass
+        elif tail == 'list':
+            pass
+        elif tail == 'create':
+            pass
+        elif tail == 'set':
+            pass
+        elif tail == 'update':
+            pass
+        elif tail == 'delete':
+            pass
+        elif tail == 'watch':
+            pass
+            s = service(app, route, request)
+            attr = getattr(s, second)
+            if getattr(attr, '__rpc__', not second.startswith('_')):
+                return app.handle(second, attr, route.advance(), request)
+
+    @rpc(expose=False)
+    @staticmethod
+    def describe_trpc_object(name, model):
+        return objects.Collection(name)
 
 class Route:
     def __init__(self, request, path, index):
@@ -105,7 +148,7 @@ class App:
     def schema(self):
         return self.build_namespace(self.name, self.root, embed=True)
 
-    def build_namespace(self, name, obj, embed=True):
+    def build_namespace(self, name, obj, embed=False):
         links = []
         forms = {}
         embeds = {}
@@ -113,7 +156,8 @@ class App:
         for key, value in obj.items():
             if isinstance(value, types.FunctionType):
                 forms[key] = funcargs(value)
-            elif isinstance(value, type) and issubclass(value, Endpoint):
+            elif isinstance(value, Endpoint) or (
+                    isinstance(value, type) and issubclass(value, Endpoint)):
                 links.append(key)
                 urls[key] = "{}/".format(key)
                 if embed:
@@ -129,14 +173,18 @@ class App:
         return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds, urls=urls)
 
     def handle(self, name, obj, route, request):
+        if name.startswith('_'):
+            return
         if isinstance(obj, dict):
             return self.handle_dict(name, obj, route, request)
         elif isinstance(obj, type) and issubclass(obj, Endpoint):
-            return obj.handle_trpc_request(self, obj, route, request)
-        elif isinstance(obj, types.FunctionType):
-            return self.handle_func(obj, route, request)
+            return obj.handle_trpc_request(self, name, obj, route, request)
+        elif isinstance(obj, Endpoint):
+            return obj.handle_trpc_request(self, name, obj, route, request)
+        elif isinstance(obj, (types.FunctionType, types.MethodType)):
+            return self.handle_func(name, obj, route, request)
     
-    def handle_func(self, func, route, request):
+    def handle_func(self, name, func, route, request):
         if request.method == 'GET':
             raise HTTPResponse('405 not allowed', (), [b'no'])
         elif request.method == 'POST':

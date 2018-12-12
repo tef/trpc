@@ -151,6 +151,11 @@ $ trpc list Model
 - _XXX_ 
  - Client follows URLs given by server, can redirect to other APIs
 
+# asyncio
+
+- _XXX_
+    - alternate client api
+
 # How it works?
 
 - _XXX_

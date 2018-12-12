@@ -66,6 +66,7 @@ class CLI:
                 print(link)
             for form in obj.metadata.get('forms', ()):
                 print(form)
+            print(obj.fields)
         return
 
     def parse(self, argv, environ):
