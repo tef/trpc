@@ -11,13 +11,13 @@ class Session:
     def __init__(self):
         pass
 
-    class HTTPRequest:
+    class APIRequest:
         def __init__(self, verb, url, data):
             self.verb = verb
             self.url = url
             self.data = data
         
-    class HTTPResponse:
+    class APIResponse:
         def __init__(self, base_url, kind, apiVersion, metadata, fields):
             self.base_url = base_url
             self.kind = kind
@@ -36,7 +36,7 @@ class Session:
 
             url = urljoin(self.base_url, name) # + "/"
 
-            return Session.HTTPRequest('GET', url, None)
+            return Session.APIRequest('GET', url, None)
 
         def has_link(self, name):
             if 'links' in self.metadata:
@@ -52,15 +52,15 @@ class Session:
             if name not in forms:
                 if name in links:
                     url = urljoin(self.base_url, name)
-                    return Session.HTTPRequest('GET', url, None)
+                    return Session.APIRequest('GET', url, None)
                 raise Exception(name)
 
             url = urljoin(self.base_url, name)
-            return Session.HTTPRequest('POST', url, args)
+            return Session.APIRequest('POST', url, args)
 
     def fetch(self, request):
         if isinstance(request, str):
-            request = self.HTTPRequest("GET", request, None)
+            request = self.APIRequest("GET", request, None)
 
         data = request.data
         if data is None:
@@ -85,37 +85,37 @@ class Session:
         apiVersion = obj.pop('apiVersion')
         metadata = obj.pop('metadata')
 
-        return self.HTTPResponse(base_url, kind, apiVersion, metadata, obj)
+        return self.APIResponse(base_url, kind, apiVersion, metadata, obj)
 
 
-class Remote:
-    def __init__(self, client, response):
-        self.client = client
+class Client:
+    def __init__(self, session, response):
+        self.session = session
         self.obj = response
 
     def unwrap(self, obj):
-        if isinstance(obj, self.client.HTTPResponse):
+        if isinstance(obj, self.session.APIResponse):
             if obj.kind == 'Response':
                 return obj.fields['value']
-            return Remote(self.client, obj)
+            return Client(self.session, obj)
         return obj
 
     def __getattr__(self, name):
         if name in self.obj.metadata.get('links',()):
             req = self.obj.open_link(name)
-            obj = self.client.fetch(req)
+            obj = self.session.fetch(req)
             return self.unwrap(obj)
         if name in self.obj.metadata.get('forms',()):
             def method(**args):
                 req = self.obj.submit_form(name, args)
-                obj = self.client.fetch(req)
+                obj = self.session.fetch(req)
                 return self.unwrap(obj)
             return method
         raise Exception('no')
 
 def open(endpoint):
-    c = Session()
-    obj = c.fetch(endpoint)
-    return Remote(c, obj)
+    session = Session()
+    obj = session.fetch(endpoint)
+    return Client(session, obj)
 
     
