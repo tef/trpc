@@ -66,14 +66,17 @@ class Session:
             
             arguments = {}
             form_args = forms[name]
-            while args:
-                name, value = args.pop(0)
-                if name is None:
-                    name = form_args.pop(0)
-                    arguments[name] = value
-                else:
-                    arguments[name] = value
-                    form_args.remove(name)
+            if form_args:
+                while args:
+                    name, value = args.pop(0)
+                    if name is None:
+                        name = form_args.pop(0)
+                        arguments[name] = value
+                    else:
+                        arguments[name] = value
+                        form_args.remove(name)
+            else:
+                arguments = args
 
             return Session.APIRequest('POST', url, arguments, None)
 
