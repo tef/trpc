@@ -91,7 +91,7 @@ class App:
     def schema(self):
         return self.build_namespace(self.name, self.root, embed=True)
 
-    def build_namespace(self, name, obj, embed=False):
+    def build_namespace(self, name, obj, embed=True):
         links = []
         forms = {}
         embeds = {}

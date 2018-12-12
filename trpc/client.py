@@ -12,10 +12,11 @@ class Session:
         pass
 
     class APIRequest:
-        def __init__(self, verb, url, data):
+        def __init__(self, verb, url, data, cached):
             self.verb = verb
             self.url = url
             self.data = data
+            self.cached = cached
         
     class APIResponse:
         def __init__(self, base_url, kind, apiVersion, metadata, fields):
@@ -36,7 +37,10 @@ class Session:
 
             url = urljoin(self.base_url, name) # + "/"
 
-            return Session.APIRequest('GET', url, None)
+            cached = self.metadata.get('embeds',{}).get(name)
+            print(name, cached, self.metadata['embeds'])
+
+            return Session.APIRequest('GET', url, None, cached)
 
         def has_link(self, name):
             if 'links' in self.metadata:
@@ -56,28 +60,32 @@ class Session:
                 raise Exception(name)
 
             url = urljoin(self.base_url, name)
-            return Session.APIRequest('POST', url, args)
+            return Session.APIRequest('POST', url, args, None)
 
     def fetch(self, request):
         if isinstance(request, str):
-            request = self.APIRequest("GET", request, None)
+            request = self.APIRequest("GET", request, None, None)
 
-        data = request.data
-        if data is None:
-            data = b""
+        obj = request.cached
+        if not obj:
+            data = request.data
+            if data is None:
+                data = b""
+            else:
+                content_type, data = objects.Request(data).encode()
+
+            urllib_request= urllib.request.Request(
+                url=request.url,
+                data=data,
+                method=request.verb,
+                headers={'Content-Type': objects.CONTENT_TYPE, 'Accept': objects.CONTENT_TYPE},
+            )
+
+            with urllib.request.urlopen(urllib_request) as fh:
+                base_url = fh.url
+                obj = json.load(fh)
         else:
-            content_type, data = objects.Request(data).encode()
-
-        urllib_request= urllib.request.Request(
-            url=request.url,
-            data=data,
-            method=request.verb,
-            headers={'Content-Type': objects.CONTENT_TYPE, 'Accept': objects.CONTENT_TYPE},
-        )
-
-        with urllib.request.urlopen(urllib_request) as fh:
-            base_url = fh.url
-            obj = json.load(fh)
+            base_url = request.url + '/' # haaack
 
         kind = obj.pop('kind')
         apiVersion = obj.pop('apiVersion')
@@ -99,11 +107,11 @@ class Client:
         return obj
 
     def __getattr__(self, name):
-        if name in self.obj.metadata.get('links',()):
+        if self.obj.has_link(name):
             req = self.obj.open_link(name)
             obj = self.session.fetch(req)
             return self.unwrap(obj)
-        if name in self.obj.metadata.get('forms',()):
+        if self.obj.has_form(name):
             def method(**args):
                 req = self.obj.submit_form(name, args)
                 obj = self.session.fetch(req)
