@@ -54,11 +54,11 @@ class CLI:
                 if obj.has_link(name) and not args:
                     req = obj.open_link(path[-1])
                 elif obj.has_form(name):
-                    req = obj.submit_form(path[-1], dict(args))
+                    req = obj.submit_form(path[-1], args)
                 else:
                     raise Exception(name)
                 obj = self.session.fetch(req) 
-        if obj.kind == 'Object':
+        if obj.kind == 'Result':
             print(obj.fields['value'])
         else:
             print(obj.kind)

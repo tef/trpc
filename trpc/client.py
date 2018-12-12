@@ -61,8 +61,21 @@ class Session:
                     return Session.APIRequest('GET', url, None)
                 raise Exception(name)
 
-            url = urljoin(self.base_url, name)
-            return Session.APIRequest('POST', url, args, None)
+            url = self.metadata['urls'].get(name, name)
+            url = urljoin(self.base_url, url)
+            
+            arguments = {}
+            form_args = forms[name]
+            while args:
+                name, value = args.pop(0)
+                if name is None:
+                    name = form_args.pop(0)
+                    arguments[name] = value
+                else:
+                    arguments[name] = value
+                    form_args.remove(name)
+
+            return Session.APIRequest('POST', url, arguments, None)
 
     def fetch(self, request):
         if isinstance(request, str):

@@ -125,13 +125,15 @@ class App:
                 urls[key] = "{}/".format(key)
                 if embed:
                     service = value.describe_trpc_object(key, value)
-                    embeds[key] = service.dump()
+                    if service:
+                        embeds[key] = service.dump()
             elif isinstance(value, dict):
                 links.append(key)
                 urls[key] = "{}/".format(key)
                 if embed:
                     namespace = self.build_namespace(key, value, embed=embed)
-                    embeds[key] = namespace.dump()
+                    if namespace:
+                        embeds[key] = namespace.dump()
 
         return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds, urls=urls)
 
