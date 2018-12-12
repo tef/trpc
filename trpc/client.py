@@ -40,7 +40,6 @@ class Session:
             url = urljoin(self.base_url, url)
 
             cached = self.metadata.get('embeds',{}).get(name)
-            print(name, cached, self.metadata['embeds'])
 
             return Session.APIRequest('GET', url, None, cached)
 

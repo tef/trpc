@@ -32,16 +32,18 @@ class Service:
         if not second:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-
-            methods = {}
-            for name, m in service.__dict__.items():
-                if getattr(m, '__rpc__', not name.startswith('_')):
-                    methods[name] = funcargs(m)
-            return objects.Service(second, links=(), forms=methods, urls=()) 
+            return Service.describe_trpc_object(second, service)
         else:
             s = service(app, route, request)
             attr = getattr(s, second)
             return app.handle_func(attr, route.advance(), request)
+
+    def describe_trpc_object(name, service):
+        methods = {}
+        for key, m in service.__dict__.items():
+            if getattr(m, '__rpc__', not key.startswith('_')):
+                methods[key] = funcargs(m)
+        return objects.Service(name, links=(), forms=methods, urls=()) 
 
 class Route:
     def __init__(self, request, path, index):
@@ -102,6 +104,9 @@ class App:
             elif isinstance(value, type) and issubclass(value, Service):
                 links.append(key)
                 urls[key] = "{}/".format(key)
+                if embed:
+                    service = value.describe_trpc_object(key, value)
+                    embeds[key] = service.dump()
             elif isinstance(value, dict):
                 links.append(key)
                 urls[key] = "{}/".format(key)

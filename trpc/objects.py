@@ -75,7 +75,7 @@ class Object(Wire):
 class Service(Wire):
     apiVersion = 'v0'
     fields = ('name',)
-    metadata = ('links','forms', 'embeds', 'url')
+    metadata = ('links','forms', 'embeds', 'urls')
 
     def __init__(self, name, links, forms=(), embeds=(), urls=()):
         self.name = name
