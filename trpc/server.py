@@ -22,9 +22,13 @@ def rpc(expose=True):
     return _decorate
 
 class Endpoint:
+    @rpc(expose=False)
+    @staticmethod
     def handle_trpc_request(app, service, route, request):
         pass
 
+    @rpc(expose=False)
+    @staticmethod
     def describe_trpc_object(name, service):
         pass
 
@@ -43,10 +47,10 @@ class Service(Endpoint):
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             return service.describe_trpc_object(name, service)
-        else:
+        elif not second.startswith('_'):
             s = service(app, route, request)
             attr = getattr(s, second)
-            if getattr(attr, '__rpc__', not second.startswith('_')):
+            if getattr(attr, '__rpc__', True):
                 return app.handle(second, attr, route.advance(), request)
 
     @rpc(expose=False)
@@ -59,41 +63,91 @@ class Service(Endpoint):
                     methods[key] = funcargs(m)
         return objects.Service(name, links=(), forms=methods, urls=()) 
 
-class Model(Endpoint):
+class Collection(Endpoint):
+    handler = None
+    class Handler:
+        def create_entry(self, data): pass
+        def get_entry(self, key): pass
+        def update_entry(self, key, data): pass
+        def set_entry(self, key, data): pass
+        def delete_entry(self, key): pass
+        def watch_entry(self, key): pass
+        def call_key(self, obj, method, args): pass
+
+        def dump_entry(self, obj): pass
+
+        def get_list(self, selector, cursor=None): pass
+        def delete_list(self, selector): pass
+        def set_list(self, selector, value): pass
+        def update_list(self, selector, value): pass
+        def watch_list(self, selector, cursor=None): pass
+        def call_list(self, obj, method, args): pass
+
+    def __init__(self, app, route, request):
+        self.app = app
+        self.route = route
+        self.request = request
+        self.params = dict(request.params)
+
     @rpc(expose=False)
     @staticmethod
     def handle_trpc_request(app, model, route, request):
-        tail = route.head
-        if not tail:
+        head = route.head
+        if not head:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             return service.describe_trpc_object(second, model)
 
-        if tail == 'id':
+        handler = model.handler
+
+        if head == 'id':
             route = route.advance()
             key = route.head
-            obj = model.get(key)
             if route.tail:
                 route = route.advance()
-                method = route.head
+                obj_method = route.head
+                if obj_method == 'set':
+                    pass
+                elif obj_method == 'update':
+                    pass
+                elif obj_method == 'delete':
+                    pass
+                elif obj_method =='call':
+                    route = route.advance()
+                    method = route.head
+
+                    if not method.startswith('_'):
+                        data = request.unwrap_arguments()
+                        return handler.call_entry(key, method, data)
             else:
-                pass
-        elif tail == 'list':
-            pass
-        elif tail == 'create':
-            pass
-        elif tail == 'set':
-            pass
-        elif tail == 'update':
-            pass
-        elif tail == 'delete':
-            pass
-        elif tail == 'watch':
-            pass
-            s = service(app, route, request)
-            attr = getattr(s, second)
-            if getattr(attr, '__rpc__', not second.startswith('_')):
-                return app.handle(second, attr, route.advance(), request)
+                return handler.get_entry(key)
+        elif head == 'list':
+            selector = params.get('where')
+            cursor = params.get('state')
+            return handler.get_list(selector, cursor)
+        elif head == 'create':
+            data = request.unwrap_arguments()
+            return handler.create_entry(data)
+        elif head == 'set':
+            selector = params.get('where')
+            data = request.unwrap_arguments()
+            return handler.set_list(selector, data)
+        elif head == 'update':
+            selector = params.get('where')
+            return handler.update_list(selector, data)
+        elif head == 'delete':
+            selector = params.get('where')
+            return handler.delete_list(selector)
+        elif head == 'watch':
+            selector = params.get('where')
+            return handler.watch_list(selector)
+        elif head == 'call':
+            if route.tail:
+                selector = params.get('where')
+                route = route.advance()
+                method = route.head
+                return handler.watch_list(selector, method)
+
 
     @rpc(expose=False)
     @staticmethod
@@ -177,9 +231,7 @@ class App:
             return
         if isinstance(obj, dict):
             return self.handle_dict(name, obj, route, request)
-        elif isinstance(obj, type) and issubclass(obj, Endpoint):
-            return obj.handle_trpc_request(self, name, obj, route, request)
-        elif isinstance(obj, Endpoint):
+        elif isinstance(obj, Endpoint) or (isinstance(obj, type) and issubclass(obj, Endpoint)):
             return obj.handle_trpc_request(self, name, obj, route, request)
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
             return self.handle_func(name, obj, route, request)
