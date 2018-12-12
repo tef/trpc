@@ -82,6 +82,15 @@ class ResultSet(Wire):
         self.value = value
         self.next = Next
 
+class FutureResult(Wire):
+    apiVersion = 'v0'
+    fields = ()
+    metadata = ('url', 'wait_seconds')
+
+    def __init__(self, url, wait_seconds=120):
+        self.url = url
+        self.wait_seconds = wait_seconds
+
 class Procedure(Wire):
     apiVersion = 'v0'
     fields = ('name',)
@@ -94,18 +103,6 @@ class Procedure(Wire):
 class Service(Wire):
     apiVersion = 'v0'
     fields = ('name',)
-    metadata = ('links','forms', 'embeds', 'urls')
-
-    def __init__(self, name, links, forms=(), embeds=(), urls=()):
-        self.name = name
-        self.links = links
-        self.forms = forms or {}
-        self.embeds = embeds or {}
-        self.urls = urls or {}
-
-class Namespace(Wire):
-    apiVersion = 'v0'
-    fields = ('name', )
     metadata = ('links','forms', 'embeds', 'urls')
 
     def __init__(self, name, links, forms=(), embeds=(), urls=()):
@@ -168,4 +165,10 @@ class EntrySet(Wire):
         self.embeds = embeds or {}
         self.urls = urls or {}
 
+# Stream - one way
 
+# Channel - two way
+
+# Terminal - two way + result
+
+# Document
