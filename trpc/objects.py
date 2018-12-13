@@ -127,13 +127,13 @@ class Namespace(Wire):
 class Collection(Wire):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('key','indexes', 'fields', 'links','forms','embeds', 'urls')
+    metadata = ('key','indexes', 'links','forms','embeds', 'urls')
 
-    def __init__(self, name, key, indexes, fields, links=(), forms=(), embeds=(), urls=()):
+    def __init__(self, name, key,  create, indexes, links=(), forms=(), embeds=(), urls=()):
         self.name = name
         self.key = key
+        self.create = create
         self.indexes = indexes
-        self.fields = fields
         self.links = links
         self.forms = forms or {}
         self.embeds = embeds or {}
