@@ -25,7 +25,7 @@ class Endpoint:
     def __init__(self, obj):
         pass
 
-class ServiceEndpoint:
+class ServiceEndpoint(Endpoint):
     __rpc__ = False
 
     def __init__(self, app, name, service):
@@ -108,20 +108,22 @@ class App:
     def __init__(self, name, root):
         self.name = name
         self.root = root
+        self.endpoint = self.make_endpoint(name, root)
 
     def make_endpoint(self, name, obj):
         if isinstance(obj, dict):
             out = {}
             for key, value in obj.items():
-                out[key] = make_endpoint(key, obj)
+                o = self.make_endpoint(key, value)
+                out[key] = o
             return out
         elif hasattr(obj, 'make_trpc_endpoint'):
             return obj.make_trpc_endpoint(self, name, obj)
-        else:
+        elif isinstance(obj, (types.FunctionType, types.MethodType)):
             return obj
 
     def schema(self):
-        return self.build_namespace(self.name, self.root, embed=True)
+        return self.build_namespace(self.name, self.endpoint, embed=True)
 
     def build_namespace(self, name, obj, embed=True):
         links = []
@@ -131,13 +133,11 @@ class App:
         for key, value in obj.items():
             if isinstance(value, types.FunctionType):
                 forms[key] = funcargs(value)
-            elif hasattr(value, 'make_trpc_endpoint') or (
-                    isinstance(value, type) and issubclass(value, Endpoint)):
+            elif isinstance(value, Endpoint):
                 links.append(key)
                 urls[key] = "{}/".format(key)
                 if embed:
-                    endpoint = value.make_trpc_endpoint(self, key, value)
-                    service = endpoint.describe_trpc_endpoint()
+                    service = value.describe_trpc_endpoint()
                     if service:
                         embeds[key] = service.dump()
             elif isinstance(value, dict):
@@ -155,9 +155,8 @@ class App:
             return
         if isinstance(obj, dict):
             return self.handle_dict(name, obj, route, request)
-        elif hasattr(obj, 'make_trpc_endpoint') or (isinstance(obj, type) and issubclass(obj, Endpoint)):
-            endpoint = obj.make_trpc_endpoint(self, name, obj)
-            return endpoint.handle_trpc_request(route, request)
+        elif isinstance(obj, Endpoint):
+            return obj.handle_trpc_request(route, request)
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
             return self.handle_func(name, obj, route, request)
     
@@ -189,7 +188,7 @@ class App:
 
     def handle_request(self, request):
         route = Route(request, request.path.lstrip('/').split('/'), 0)
-        out = self.handle(self.name, self.root, route, request)
+        out = self.handle(self.name, self.endpoint, route, request)
 
         accept = request.headers.get('accept', objects.CONTENT_TYPE).split(',')
 
