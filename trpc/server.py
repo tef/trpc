@@ -38,16 +38,16 @@ class ServiceEndpoint:
         if not second:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return self.describe_trpc_object(self.name, self.service)
+            return self.describe_trpc_endpoint()
         elif not second.startswith('_'):
             s = self.service(self.app, route, request)
             attr = getattr(s, second)
             if getattr(attr, '__rpc__', True):
                 return self.app.handle(second, attr, route.advance(), request)
 
-    def describe_trpc_object(self, object):
+    def describe_trpc_endpoint(self):
         methods = {}
-        for key, m in object.__dict__.items():
+        for key, m in self.service.__dict__.items():
             if getattr(m, '__rpc__', not key.startswith('_')):
                 if isinstance(m, types.FunctionType):
                     methods[key] = funcargs(m)
@@ -137,7 +137,7 @@ class App:
                 urls[key] = "{}/".format(key)
                 if embed:
                     endpoint = value.make_trpc_endpoint(self, key, value)
-                    service = endpoint.describe_trpc_object(value)
+                    service = endpoint.describe_trpc_endpoint()
                     if service:
                         embeds[key] = service.dump()
             elif isinstance(value, dict):

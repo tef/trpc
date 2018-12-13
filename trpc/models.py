@@ -73,9 +73,8 @@ class ModelEndpoint(Endpoint):
                 return self.watch_list(selector)
 
 
-    def describe_trpc_object(self, object):
-        if object == self.model:
-            return self.describe_collection()
+    def describe_trpc_endpoint(self):
+        return self.describe_collection()
 
 
     def create_entry(self, data): pass
