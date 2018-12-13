@@ -41,7 +41,7 @@ class Wire:
         return self.__class__.__name__
 
 
-    def dump(self):
+    def embed(self):
         fields = {k:getattr(self, k) for k in self.fields}
         metadata = {k:getattr(self, k) for k in self.metadata}
         return dict(
@@ -52,7 +52,7 @@ class Wire:
         )
 
     def encode(self, accept=None):
-        data = json.dumps(self.dump())
+        data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
 
 

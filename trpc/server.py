@@ -139,14 +139,14 @@ class App:
                 if embed:
                     service = value.describe_trpc_endpoint()
                     if service:
-                        embeds[key] = service.dump()
+                        embeds[key] = service.embed()
             elif isinstance(value, dict):
                 links.append(key)
                 urls[key] = "{}/".format(key)
                 if embed:
                     namespace = self.build_namespace(key, value, embed=embed)
                     if namespace:
-                        embeds[key] = namespace.dump()
+                        embeds[key] = namespace.embed()
 
         return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds, urls=urls)
 
@@ -240,7 +240,7 @@ class App:
         if sys.argv[1:] == ['--schema',]:
             import json
             schema = self.schema()
-            obj = schema.dump()
+            obj = schema.embed()
             print(json.dumps(obj, indent=4))
             return
 

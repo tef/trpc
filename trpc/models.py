@@ -72,10 +72,8 @@ class ModelEndpoint(Endpoint):
                 selector = params.get('where')
                 return self.watch_list(selector)
 
-
     def describe_trpc_endpoint(self):
         return self.describe_collection()
-
 
     def create_entry(self, data): pass
     def get_entry(self, key): pass
@@ -115,7 +113,7 @@ class PeeweeEndpoint(ModelEndpoint):
             links=(), forms=methods, urls=urls,
         )
 
-    def describe_entry(self, name, key,  entry):
+    def describe_entry(self, key):
         pass
 
     def create_entry(self, data):
