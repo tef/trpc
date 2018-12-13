@@ -6,19 +6,20 @@ from . import objects
 from .server import Endpoint, funcargs, rpc
 
 class ModelEndpoint(Endpoint):
-    def __init__(self, model):
+    def __init__(self, app, model):
+        self.app = app
         self.model = model
         self.key = None
         self.create_fields = ()
         self.indexes = ()
 
-    def handle_trpc_request(self, app, name, model, route, request):
+    def handle_trpc_request(self, name, route, request):
         method = route.head
 
         if not method:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return self.describe_trpc_object(name, model)
+            return self.describe_collection(name)
 
         route = route.advance()
         key = route.head
@@ -36,7 +37,7 @@ class ModelEndpoint(Endpoint):
                 data = request.unwrap_arguments()
                 return self.call_entry(key, method, data)
             elif key:
-                return self.describe_entry(name, model, key)
+                return self.describe_entry(name, key)
         elif method == 'list':
             selector = params.get('where')
             cursor = params.get('state')
@@ -72,8 +73,9 @@ class ModelEndpoint(Endpoint):
                 return self.watch_list(selector)
 
 
-    def describe_trpc_object(self, name, model):
-        return self.describe_collection(name, model)
+    def describe_trpc_object(self, name, object):
+        if object == self.model:
+            return self.describe_collection(name)
 
 
     def create_entry(self, data): pass
@@ -92,7 +94,8 @@ class ModelEndpoint(Endpoint):
 
 
 class PeeweeEndpoint(ModelEndpoint):
-    def __init__(self, model):
+    def __init__(self, app, model):
+        self.app = app
         self.pk = model._meta.primary_key
         self.key = self.pk.name
         self.fields = model._meta.fields
@@ -101,9 +104,7 @@ class PeeweeEndpoint(ModelEndpoint):
         self.indexes.extend(k for k,v in self.fields.items() if v.index or v.unique) 
         self.model = model
 
-    def describe_collection(self, name, model):
-        if model != self.model:
-            return
+    def describe_collection(self, name):
         methods = {}
         urls = {}
         return objects.Collection(
@@ -114,7 +115,7 @@ class PeeweeEndpoint(ModelEndpoint):
             links=(), forms=methods, urls=urls,
         )
 
-    def describe_entry(self, name, collection, key,  entry):
+    def describe_entry(self, name, key,  entry):
         pass
 
     def create_entry(self, data):
