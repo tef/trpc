@@ -102,10 +102,23 @@ class HTTPRequest:
         if data and data['kind'] == 'Request':
             return data['arguments']
 
+
+
 class App:
     def __init__(self, name, root):
         self.name = name
         self.root = root
+
+    def make_endpoint(self, name, obj):
+        if isinstance(obj, dict):
+            out = {}
+            for key, value in obj.items():
+                out[key] = make_endpoint(key, obj)
+            return out
+        elif hasattr(obj, 'make_trpc_endpoint'):
+            return obj.make_trpc_endpoint(self, name, obj)
+        else:
+            return obj
 
     def schema(self):
         return self.build_namespace(self.name, self.root, embed=True)
