@@ -29,14 +29,14 @@ class ServiceEndpoint:
     __rpc__ = False
 
     def __init__(self, service):
-        self.service = service
+        pass
 
     def handle_trpc_request(self, app, name, service, route, request):
         second = route.head
         if not second:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return service.describe_trpc_object(name, service)
+            return self.describe_trpc_object(name, service)
         elif not second.startswith('_'):
             s = service(app, route, request)
             attr = getattr(s, second)

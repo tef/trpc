@@ -12,13 +12,13 @@ class ModelEndpoint(Endpoint):
         self.create_fields = ()
         self.indexes = ()
 
-    def handle_trpc_request(self, app, name, collection, route, request):
+    def handle_trpc_request(self, app, name, model, route, request):
         method = route.head
 
         if not method:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return collection.describe_trpc_object(name, collection)
+            return self.describe_trpc_object(name, model)
 
         route = route.advance()
         key = route.head
@@ -29,64 +29,52 @@ class ModelEndpoint(Endpoint):
         if method.startswith('_') or obj_method.startswith('_'):
             return
 
-        handler = collection(app, route, request)
-
         print(method, key, obj_method)
 
         if method == 'id':
             if key and obj_method:
-                obj = handler.get_entry(key)
                 data = request.unwrap_arguments()
-                attr = getattr(obj, method)
-                return app.handle(method, attr, route.advance(), request)
+                return self.call_entry(key, method, data)
             elif key:
-                obj = handler.get_entry(key)
-                return collection.describe_trpc_object(key, obj)
+                return self.describe_entry(name, model, key)
         elif method == 'list':
             selector = params.get('where')
             cursor = params.get('state')
-            return handler.get_list(selector, cursor)
+            return self.get_list(selector, cursor)
         elif method == 'create':
             data = request.unwrap_arguments()
-            return handler.create_entry(data)
+            return self.create_entry(data)
         elif method == 'set':
             data = request.unwrap_arguments()
             if key:
-                return handler.set_key(key, data)
+                return self.set_key(key, data)
             else:
                 selector = params.get('where')
-                return handler.set_list(selector, data)
+                return self.set_list(selector, data)
         elif method == 'update':
             data = request.unwrap_arguments()
             if key:
-                return handler.update_key(key, data)
+                return self.update_key(key, data)
             else:
                 selector = params.get('where')
-                return handler.update_list(selector, data)
+                return self.update_list(selector, data)
         elif method == 'delete':
             if key:
-                return handler.delete(key)
+                return self.delete(key)
             else:
                 selector = params.get('where')
-                return handler.delete_list(selector)
+                return self.delete_list(selector)
         elif method == 'watch':
             if key:
-                return handler.watch_key(key, data)
+                return self.watch_key(key, data)
             else:
                 selector = params.get('where')
-                return handler.watch_list(selector)
+                return self.watch_list(selector)
 
 
-    def describe_trpc_object(self, name, collection):
-        methods = {}
-        urls = {}
-        return objects.Collection(
-            name=name,
-            key=self.key,
-            create=self.create_fields,
-            indexes=self.indexes,
-            links=(), forms=methods, urls=urls,
-        )
+    def describe_trpc_object(self, name, model):
+        return self.describe_collection(name, model)
+
 
     def create_entry(self, data): pass
     def get_entry(self, key): pass
@@ -113,12 +101,27 @@ class PeeweeEndpoint(ModelEndpoint):
         self.indexes.extend(k for k,v in self.fields.items() if v.index or v.unique) 
         self.model = model
 
+    def describe_collection(self, name, model):
+        if model != self.model:
+            return
+        methods = {}
+        urls = {}
+        return objects.Collection(
+            name=name,
+            key=self.key,
+            create=self.create_fields,
+            indexes=self.indexes,
+            links=(), forms=methods, urls=urls,
+        )
+
+    def describe_entry(self, name, collection, key,  entry):
+        pass
+
     def create_entry(self, data):
         return self.model.create(**data)
 
     def get_entry(self, key):
         return self.model.get(self.pk == name)
-        def update_entry(self, key, data): pass
 
     def update_entry(self, key, data):
         pass
@@ -167,7 +170,10 @@ class PeeweeEndpoint(ModelEndpoint):
         pass
     def update_list(self, selector, value): 
         pass
-    def watch_list(self, selector, cursor=None): pass
+
+    def watch_list(self, selector, cursor=None): 
+        pass
+
     def extract_attributes(self, obj):
         attr = dict()
         for name in self.fields:
