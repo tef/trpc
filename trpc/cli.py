@@ -92,9 +92,10 @@ class CLI:
                     name, value = arg[2:].split('=', 1)
                 else:
                     name, value = arg[2:], None
+                args.append((name, value))
             else:
                 name, value = None, arg
-            args.append((name, value))
+                args.append((name, value))
         return mode, path, args
 
 

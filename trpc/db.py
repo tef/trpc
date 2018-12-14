@@ -212,24 +212,17 @@ class PeeweeEndpoint(CollectionEndpoint):
         return items
 
 if __name__ == '__main__':
+    Model.make_trpc_endpoint=PeeweeEndpoint
+
     url = os.environ.get("DATABASE_URL","sqlite:///trpc.db")
 
     db = db_connect(url)
     db.connect()
 
     introspector = Introspector.from_database(db)
+    endpoints = introspector.generate_models()
     database = introspector.introspect()
 
-    endpoints = {}
-
-    for table in database.model_names.keys():
-        class _Table(Model):
-            class Meta:
-                database = db
-                table_name = table
-            make_trpc_endpoint=PeeweeEndpoint
-
-        endpoints[table] = _Table
 
     app = App('Database', endpoints)
     app.main()
