@@ -4,9 +4,9 @@ import uuid
 
 from peewee import SqliteDatabase, Model, UUIDField, CharField
 
-from trpc import server, models
+from trpc import server, db as trpc_db
 
-Model.make_trpc_endpoint = models.PeeweeEndpoint
+Model.make_trpc_endpoint = trpc_db.PeeweeEndpoint
 
 db = SqliteDatabase('people.db')
 
