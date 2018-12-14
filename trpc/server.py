@@ -236,7 +236,9 @@ class App:
     def automain(self, name, port=1729):
         if name != '__main__':
             return
+        self.main(port)
 
+    def main(self,port=1729):
         if sys.argv[1:] == ['--schema',]:
             import json
             schema = self.schema()
