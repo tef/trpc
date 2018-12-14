@@ -1,10 +1,21 @@
-# trpc, yet another rpc library & toolkit
+# trpc, yet another rpc toolkit
 
-`trpc` is a python 3 framework for writing services, and comes with:
+`trpc` is yet another an rpc library for Python 3, but comes with a few built in tools:
 
-- a generic client api (no stubs!)
+- A generic server for exposing databases.
+
+  ```
+  $ DATABASE_URL=./db_server.py 
+
+  http://127.0.0.1:1729/
+  Press ^C to exit
+  ```
+  
+- A generic command line tool, for accessing services.
+
 - a generic command line tool
-- schema generation from code
+- schema generation from code 
+- a generic client api (no stubs!)
 - a generic server, for databases, too!
 
 It uses JSON and HTTP underneath by default, but doesn't have to.

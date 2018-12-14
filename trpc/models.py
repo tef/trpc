@@ -5,14 +5,7 @@ from urllib.parse import urljoin, urlencode
 from . import objects
 from .server import Endpoint, funcargs, rpc
 
-class ModelEndpoint(Endpoint):
-    def __init__(self, app, model):
-        self.app = app
-        self.model = model
-        self.key = None
-        self.create_fields = ()
-        self.indexes = ()
-
+class CollectionEndpoint(Endpoint):
     def handle_trpc_request(self, route, request):
         method = route.head
 
@@ -75,22 +68,35 @@ class ModelEndpoint(Endpoint):
     def describe_trpc_endpoint(self):
         return self.describe_collection()
 
-    def create_entry(self, data): pass
-    def get_entry(self, key): pass
-    def update_entry(self, key, data): pass
-    def set_entry(self, key, data): pass
-    def delete_entry(self, key): pass
-    def watch_entry(self, key): pass
-    def call_entry(self, obj, method, args): pass
+    def describe_collection(self): 
+        pass
+    def describe_entry(self, key): 
+        pass
+    def create_entry(self, data): 
+        pass
+    def update_entry(self, key, data): 
+        pass
+    def set_entry(self, key, data): 
+        pass
+    def delete_entry(self, key): 
+        pass
+    def watch_entry(self, key): 
+        pass
+    def call_entry(self, key, method, args): 
+        pass
+    def get_list(self, selector, cursor=None): 
+        pass
+    def delete_list(self, selector): 
+        pass
+    def set_list(self, selector, value): 
+        pass
+    def update_list(self, selector, value): 
+        pass
+    def watch_list(self, selector, cursor=None): 
+        pass
 
-    def get_list(self, selector, cursor=None): pass
-    def delete_list(self, selector): pass
-    def set_list(self, selector, value): pass
-    def update_list(self, selector, value): pass
-    def watch_list(self, selector, cursor=None): pass
 
-
-class PeeweeEndpoint(ModelEndpoint):
+class PeeweeEndpoint(CollectionEndpoint):
     def __init__(self, app, name,  model):
         self.app = app
         self.name = name
