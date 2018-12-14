@@ -18,10 +18,11 @@ Then you can access it from the command line, using only the URL!
 
 ```
 $ export TRPC_URL=http://127.0.0.1:1729/
-$ trpc list TableName
+$ alias trpc='python3 -m trpc'
+$ python3 trpc list TableName
 ...
 
-$ trpc create Person --name='bob'
+$ python3 -m trpc create Person --name='bob'
 ...
 ```
 
@@ -43,6 +44,8 @@ import trpc
 
 def demo():
     return "Hello, World!"
+
+namespace = {'demo': demo}
 
 app = trpc.App('example', namespace) # WSGI App
 
@@ -94,8 +97,10 @@ The command line tool either has to know in advance how every api works, or, lea
 
 You can add a new service, or a new method, without forcing the client libraries to change. The client knows about different types of api responses too, including ones requiring polling. A busy or hot method can be replaced with one that forces clients to poll for an answer, and control the polling interval too, without changing or updating clients, or breaking them too!
 
+Take an example service:
+
 ```
-class Example(Service):
+class Example(trpc.Service):
     def hello(self, name):
         return "Hello, {}!".format(name)
 
@@ -107,22 +112,15 @@ namespace = {
     ...
 }
 ```
-There isn't a schema
 
-Unlike other RPC frameworks, `trpc` has a rich vocabulary of interfaces. Beginning with Request and Result, there's a FutureResult to tell the client to wait. A ResultSet that can be broken across multilple requests, too. 
-
-
-
-
-## A example service:
-
-You can organize your RPC methods into namespaces and services.
-
+You can can call it from the command line:
 
 ```
 $ trpc call nested:Example:hello --name=sam
 Hello, sam!
 ```
+
+Or, call it directly:
 
 ```
 api = trpc.open("http://localhost:1729/")
@@ -131,6 +129,10 @@ print(api.Example.hello("Sam"))
 
 ```
 
+- _XXX_
+    - Similarly, API can tell client to poll for answer later
+    - Handled in client code, command line tool
+    - Can Change API to use it without changing clients
 
 # A model example
 
@@ -142,11 +144,6 @@ $ trpc list Model --where-field=..
 $ trpc get Model key
 $ trpc delete Model key
 ```
-
-# Instant service, just add database:
-
-- _XXX_
-    -  Using introspection, creating `Model`s at runtime
 
 # Pagination 
 
@@ -164,13 +161,6 @@ for row in endpoint.Model.all():
 $ trpc list Model 
 ```
 
-# Polling
-
-- _XXX_
-    - Similarly, API can tell client to poll for answer later
-    - Handled in client code, command line tool
-    - Can Change API to use it without changing clients
-
 # Sessions
 
 - _XXX_ 
@@ -187,6 +177,13 @@ $ trpc list Model
 - _XXX_
     - alternate client api
 
+# Alternate transports, encodings, clients, services
+
+- _XXX_
+    - decorating methods to indicate type
+    - grpc decorator
+    - ssh+trpc://
+
 # How it works?
 
 - _XXX_
@@ -194,4 +191,4 @@ $ trpc list Model
 
 # Authentication
 
-Yes, that is nice.
+Yes, that is nice, and would be nice to have. 
