@@ -2,7 +2,12 @@
 
 Please note: This readme is optimistic and describes a finished product. Parts are missing.
 
-`trpc` is a command line tool (and a Python 3 library) for exposing an API over HTTP and interacting with it. Unlike other frameworks `trpc` comes with reusable clients, and services too!
+`trpc` is an rpc framework that works differently from most others
+
+1. you can generate the schema from the code
+2. but the client doesn't need the schema
+3. there's a reusable command line tool
+4. and a reusable server, too!
 
 With `trpc`, you can turn any database into an api server.
 
@@ -90,6 +95,8 @@ json.dumps(schema.dump())
 ```
 
 The schema is a json file, and describes the namespaces, services, and methods exposed. There's room for types, too. You can generate server templates, or client stubs from schemas, but you don't need to. `trpc` works without it.
+
+If you want to check a service matches up, add a test to your CI to dump the schema & compare it.
 
 # Why, in all that is good, would you do that?
 

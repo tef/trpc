@@ -62,6 +62,30 @@ class Service:
     
     make_trpc_endpoint = ServiceEndpoint
 
+
+
+class NamespaceEndpoint(Endpoint):
+    __rpc__ = False
+
+    def __init__(self, app, name, namespace):
+        self.app = app
+        self.name = name
+        self.namespace = namespace
+
+    def handle_trpc_request(self, route, request):
+        return self.app.handle_dict(self.name,  self.namespace, route, request)
+
+    def describe_trpc_endpoint(self):
+        return self.app.build_namespace(self.name, self.namespace)
+
+class Namespace:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make_trpc_endpoint(app, name, obj):
+        return NamespaceEndpoint(app, name, app.make_endpoint(name, dict(obj.__dict__)))
+
 class Route:
     def __init__(self, request, path, index):
         self.request = request
@@ -178,7 +202,7 @@ class App:
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             
             return self.build_namespace(name, obj)
-        else:
+        elif not first.startswith('_'):
             item = obj.get(first)
             if not item:
                 raise HTTPResponse('404 not found', (), [b'no'])
