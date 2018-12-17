@@ -159,16 +159,16 @@ class App:
         self.root = self.make_endpoint(name, root)
 
     def make_endpoint(self, name, obj):
-        if isinstance(obj, dict):
+        if hasattr(obj, 'make_trpc_endpoint'):
+            return obj.make_trpc_endpoint(self, name, obj)
+        elif isinstance(obj, dict):
             out = {}
             for key, value in obj.items():
                 o = self.make_endpoint(key, value)
                 out[key] = o
-            return out
-        elif hasattr(obj, 'make_trpc_endpoint'):
-            return obj.make_trpc_endpoint(self, name, obj)
+            return NamespaceEndpoint(self, name, out)
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
-            return obj
+            return FunctionEndpoint(self, name, obj)
 
     def schema(self):
         if isinstance(self.root, Endpoint):
