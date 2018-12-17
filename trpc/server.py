@@ -42,8 +42,13 @@ class ServiceEndpoint(Endpoint):
         elif not second.startswith('_'):
             s = self.service(self.app, route, request)
             attr = getattr(s, second)
+
             if getattr(attr, '__rpc__', True):
-                return self.app.handle(second, attr, route.advance(), request)
+                if isinstance(attr, (types.FunctionType, types.MethodType)):
+                    if request.method == 'POST':
+                        data = request.unwrap_arguments()
+                        if not data: data = {}
+                        return attr(**data)
 
     def describe_trpc_endpoint(self, embed):
         methods = {}
@@ -63,7 +68,6 @@ class Service:
     make_trpc_endpoint = ServiceEndpoint
 
 
-
 class NamespaceEndpoint(Endpoint):
     __rpc__ = False
 
@@ -73,10 +77,40 @@ class NamespaceEndpoint(Endpoint):
         self.namespace = namespace
 
     def handle_trpc_request(self, route, request):
-        return self.app.handle_dict(self.name,  self.namespace, route, request)
+        first = route.head
+
+        if not first:
+            if request.path[-1] != '/':
+                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
+            
+            return self.describe_trpc_endpoint(embed=True)
+
+        elif not first.startswith('_'):
+            item = self.namespace.get(first)
+            if not item:
+                raise HTTPResponse('404 not found', (), [b'no'])
+
+            return self.app.handle(first, item, route.advance(), request)
+
 
     def describe_trpc_endpoint(self, embed):
-        return self.app.build_namespace(self.name, self.namespace, embed)
+        links = []
+        forms = {}
+        embeds = {}
+        urls = {}
+        for key, value in self.namespace.items():
+            if isinstance(value, Endpoint):
+                if isinstance(value, FunctionEndpoint):
+                    forms[key] = value.arguments()
+                else:
+                    links.append(key)
+                    urls[key] = "{}/".format(key)
+                    if embed:
+                        service = value.describe_trpc_endpoint(embed)
+                        if service:
+                            embeds[key] = service.embed()
+
+        return objects.Namespace(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
 
 class Namespace:
     def __init__(self):
@@ -103,7 +137,14 @@ class FunctionEndpoint(Endpoint):
         return funcargs(self.fn)
 
     def handle_trpc_request(self, route, request):
-        return self.app.handle_func(self.name,  self.fn, route, request)
+        if request.method == 'GET':
+            raise HTTPResponse('405 not allowed', (), [b'no'])
+        elif request.method == 'POST':
+            data = request.unwrap_arguments()
+            if not data: data = {}
+            return self.fn(**data)
+        
+        raise HTTPResponse('405 not allowed', [], [b'no'])
 
     def describe_trpc_endpoint(self, embed):
         return None
@@ -171,76 +212,13 @@ class App:
             return FunctionEndpoint(self, name, obj)
 
     def schema(self):
-        if isinstance(self.root, Endpoint):
-            return self.root.describe_trpc_endpoint(embed=True)
-        elif isinstance(self.root, dict):
-            return self.build_namespace(self.name, self.root)
-        elif isinstance(self.root, (types.FunctionType, types.MethodType)):
-            return None
-
-    def build_namespace(self, name, obj, embed=True):
-        links = []
-        forms = {}
-        embeds = {}
-        urls = {}
-        for key, value in obj.items():
-            if isinstance(value, Endpoint):
-                if isinstance(value, FunctionEndpoint):
-                    forms[key] = value.arguments()
-                else:
-                    links.append(key)
-                    urls[key] = "{}/".format(key)
-                    if embed:
-                        service = value.describe_trpc_endpoint(embed)
-                        if service:
-                            embeds[key] = service.embed()
-            elif isinstance(value, types.FunctionType):
-                forms[key] = funcargs(value)
-            elif isinstance(value, dict):
-                links.append(key)
-                urls[key] = "{}/".format(key)
-                if embed:
-                    namespace = self.build_namespace(key, value, embed=embed)
-                    if namespace:
-                        embeds[key] = namespace.embed()
-
-        return objects.Namespace(name=name, links=links, forms=forms, embeds=embeds, urls=urls)
+        return self.root.describe_trpc_endpoint(embed=True)
 
     def handle(self, name, obj, route, request):
         if name.startswith('_'):
             return
         elif isinstance(obj, Endpoint):
             return obj.handle_trpc_request(route, request)
-        elif isinstance(obj, dict):
-            return self.handle_dict(name, obj, route, request)
-        elif isinstance(obj, (types.FunctionType, types.MethodType)):
-            return self.handle_func(name, obj, route, request)
-    
-    def handle_func(self, name, func, route, request):
-        if request.method == 'GET':
-            raise HTTPResponse('405 not allowed', (), [b'no'])
-        elif request.method == 'POST':
-            data = request.unwrap_arguments()
-            if not data: data = {}
-            return func(**data)
-        
-        raise HTTPResponse('405 not allowed', [], [b'no'])
-
-    def handle_dict(self, name,  obj, route, request):
-        first = route.head
-
-        if not first:
-            if request.path[-1] != '/':
-                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            
-            return self.build_namespace(name, obj)
-        elif not first.startswith('_'):
-            item = obj.get(first)
-            if not item:
-                raise HTTPResponse('404 not found', (), [b'no'])
-
-            return self.handle(first, item, route.advance(), request)
-
 
     def handle_request(self, request):
         route = Route(request, request.path.lstrip('/').split('/'), 0)
