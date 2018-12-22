@@ -7,85 +7,17 @@ from urllib.parse import urljoin, urlencode
 
 from . import objects
 
-class APIRequest:
-    def __init__(self, verb, url, data, cached):
-        self.verb = verb
-        self.url = url
-        self.data = data
-        self.cached = cached
-    
-class APIResponse:
-    def __init__(self, base_url, kind, apiVersion, metadata, fields):
-        self.base_url = base_url
-        self.kind = kind
-        self.apiVersion = apiVersion
-        self.metadata = metadata
-        self.fields = fields
-
-    def __repr__(self):
-        return self.kind
-
-    def open_link(self, name):
-        links = self.metadata['links']
-        if name not in links:
-            raise Exception(name)
-
-        url = self.metadata['urls'].get(name, name)
-
-        url = urljoin(self.base_url, url)
-
-        cached = self.metadata.get('embeds',{}).get(name)
-
-        return APIRequest('GET', url, None, cached)
-
-    def has_link(self, name):
-        if 'links' in self.metadata:
-            return name in self.metadata['links']
-
-    def has_form(self, name):
-        if 'forms' in self.metadata:
-            return name in self.metadata['forms']
-
-    def submit_form(self, name, args):
-        links = self.metadata['links']
-        forms = self.metadata['forms']
-        if name not in forms:
-            if name in links:
-                url = self.metadata['urls'].get(name, name)
-                url = urljoin(self.base_url, url)
-                return APIRequest('GET', url, None)
-            raise Exception(name)
-
-        url = self.metadata['urls'].get(name, name)
-        url = urljoin(self.base_url, url)
-        
-        arguments = {}
-        form_args = forms[name]
-        if form_args:
-            while args:
-                name, value = args.pop(0)
-                if name is None:
-                    name = form_args.pop(0)
-                    arguments[name] = value
-                else:
-                    arguments[name] = value
-                    form_args.remove(name)
-        else:
-            arguments = args
-
-        return APIRequest('POST', url, arguments, None)
-
-    def wrap(self, session):
-        if self.kind == 'Result':
-            return self.fields['value']
-        elif self.kind == 'Namespace':
-            return Namespace(self, session)
-        elif self.kind == 'Service':
-            return Service(self, session)
-        elif self.kind == 'Collection':
-            return Collection(self, session)
-        else:
-            return self
+def wrap(self, session):
+    if self.kind == 'Result':
+        return self.fields['value']
+    elif self.kind == 'Namespace':
+        return Namespace(self, session)
+    elif self.kind == 'Service':
+        return Service(self, session)
+    elif self.kind == 'Collection':
+        return Collection(self, session)
+    else:
+        return self
 
 class APIClient:
     pass
@@ -98,7 +30,7 @@ class Navigable(APIClient):
     def _fetch(self, req):
         if self._session:
             response = self._session.request(req)
-            return response.wrap(self._session)
+            return wrap(response, self._session)
         else:
             return req
     def __getattr__(self, name):
@@ -126,7 +58,7 @@ class Collection(APIClient):
     def _fetch(self, req):
         if self._session:
             response = self._session.request(req)
-            return response.wrap(self._session)
+            return wrap(response, self._session)
         else:
             return req
 
@@ -160,7 +92,7 @@ class Session:
 
     def request(self, request):
         if isinstance(request, str):
-            request = APIRequest("GET", request, None, None)
+            request = objects.Request("GET", request, None, None)
 
         obj = request.cached
         if not obj:
@@ -187,7 +119,7 @@ class Session:
         apiVersion = obj.pop('apiVersion')
         metadata = obj.pop('metadata')
 
-        return APIResponse(base_url, kind, apiVersion, metadata, obj)
+        return objects.Response(base_url, kind, apiVersion, metadata, obj)
 
 
 
@@ -195,6 +127,6 @@ class Session:
 def open(endpoint):
     session = Session()
     obj = session.request(endpoint)
-    return obj.wrap(session)
+    return wrap(response, session)
 
     
