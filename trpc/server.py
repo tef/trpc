@@ -22,13 +22,13 @@ def rpc(expose=True):
     return _decorate
 
 class Endpoint:
-    def __init__(self, obj):
+    def __init__(self, app, prefix, name, obj):
         pass
 
 class ServiceEndpoint(Endpoint):
     __rpc__ = False
 
-    def __init__(self, app, name, service):
+    def __init__(self, app, prefix, name, service):
         self.app = app
         self.name = name
         self.service = service
@@ -71,7 +71,7 @@ class Service:
 class NamespaceEndpoint(Endpoint):
     __rpc__ = False
 
-    def __init__(self, app, name, namespace):
+    def __init__(self, app, prefix, name, namespace):
         self.app = app
         self.name = name
         self.namespace = namespace
@@ -89,9 +89,7 @@ class NamespaceEndpoint(Endpoint):
             item = self.namespace.get(first)
             if not item:
                 raise HTTPResponse('404 not found', (), [b'no'])
-
-            return self.app.handle(first, item, route.advance(), request)
-
+            return item.handle_trpc_request(route.advance(), request)
 
     def describe_trpc_endpoint(self, embed):
         links = []
@@ -117,18 +115,20 @@ class Namespace:
         pass
 
     @staticmethod
-    def make_trpc_endpoint(app, name, obj):
+    def make_trpc_endpoint(app, prefix,  name, obj):
         out = {}
+        p = list(prefix)
+        p.append(name)
         for key, value in obj.__dict__.items():
             if not key.startswith("_"):
-                o = app.make_endpoint(key, value)
+                o = app.make_endpoint(prefix, key, value)
                 out[key] = o
-        return NamespaceEndpoint(app, name, out)
+        return NamespaceEndpoint(app, prefix, name, out)
 
 class FunctionEndpoint(Endpoint):
     __rpc__ = False
 
-    def __init__(self, app, name, fn):
+    def __init__(self, app, prefix, name, fn):
         self.app = app
         self.name = name
         self.fn = fn
@@ -197,19 +197,28 @@ class Future(Exception):
 class App:
     def __init__(self, name, root):
         self.name = name
-        self.root = self.make_endpoint(name, root)
+        self.endpoints = {}
+        self.root = self.make_endpoint((), name, root)
 
-    def make_endpoint(self, name, obj):
+    def make_endpoint(self, prefix, name, obj):
         if hasattr(obj, 'make_trpc_endpoint'):
-            return obj.make_trpc_endpoint(self, name, obj)
+            e = obj.make_trpc_endpoint(self, prefix, name, obj)
+            self.endpoints[obj] = e
+            return e
         elif isinstance(obj, dict):
             out = {}
+            prefix = list(prefix)
+            prefix.append(name)
             for key, value in obj.items():
-                o = self.make_endpoint(key, value)
+                o = self.make_endpoint(prefix, key, value)
                 out[key] = o
-            return NamespaceEndpoint(self, name, out)
+            e = NamespaceEndpoint(self, prefix,  name, out)
+            # self.endpoints[obj] = e
+            return e
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
-            return FunctionEndpoint(self, name, obj)
+            e = FunctionEndpoint(self, prefix, name, obj)
+            self.endpoints[obj] = e
+            return e
 
     def schema(self):
         return self.root.describe_trpc_endpoint(embed=True)
@@ -225,8 +234,10 @@ class App:
         out = self.handle(self.name, self.root, route, request)
 
         accept = request.headers.get('accept', objects.CONTENT_TYPE).split(',')
+        if isinstance(out, (dict, list, int, float, bool, str)):
+            out = objects.Result(out)
 
-        content_type, data = objects.encode(out, accept)
+        content_type, data = out.encode(accept)
         status = "200 Adequate"
         headers = [("content-type", content_type)]
         return HTTPResponse(status, headers, [data])
