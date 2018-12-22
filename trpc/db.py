@@ -2,7 +2,7 @@ import types
 import os, sys, uuid
 from urllib.parse import urljoin, urlencode
 
-from . import objects
+from . import wire
 from .server import App, Endpoint, funcargs, rpc
 
 from peewee import Database, Model
@@ -115,7 +115,7 @@ class PeeweeEndpoint(CollectionEndpoint):
     def describe_collection(self):
         methods = {}
         urls = {}
-        return objects.Collection(
+        return wire.Collection(
             name=self.name,
             key=self.key,
             create=self.create_fields,
@@ -165,7 +165,7 @@ class PeeweeEndpoint(CollectionEndpoint):
         else:
             items = list(items)
 
-        return objects.EntrySet(
+        return wire.EntrySet(
             name=self.name, 
             selector=dom.dump_selector(selector),
             items=items,

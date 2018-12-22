@@ -6,7 +6,7 @@ import inspect
 
 from urllib.parse import urljoin, urlencode, parse_qsl
 
-from . import objects, client, cli, wsgi
+from . import wire, client, cli, wsgi
 
 def funcargs(m):
     signature = inspect.signature(m)
@@ -56,7 +56,7 @@ class ServiceEndpoint(Endpoint):
             if getattr(m, '__rpc__', not key.startswith('_')):
                 if isinstance(m, types.FunctionType):
                     methods[key] = funcargs(m)
-        return objects.Service(self.name, links=(), forms=methods, urls=()) 
+        return wire.Service(self.name, links=(), forms=methods, urls=()) 
 
 class Service:
     def __init__(self, app, route, request):
@@ -108,7 +108,7 @@ class NamespaceEndpoint(Endpoint):
                         if service:
                             embeds[key] = service.embed()
 
-        return objects.Namespace(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
+        return wire.Namespace(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
 
 class Namespace:
     def __init__(self):
@@ -185,8 +185,8 @@ class HTTPRequest:
         self.data = data
 
     def unwrap_arguments(self):
-        data = objects.decode_bytes(self.data, self.content_type)
-        if isinstance(data, objects.Arguments):
+        data = wire.decode_bytes(self.data, self.content_type)
+        if isinstance(data, wire.Arguments):
             return data.values
 
 class Future(Exception):
@@ -239,16 +239,11 @@ class App:
 
     def handle_request(self, request):
         route = Route(request, request.path.lstrip('/').split('/'), 0)
-        accept = request.headers.get('accept', objects.CONTENT_TYPE).split(',')
+        accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
         try:
             out = self.handle(self.name, self.root, route, request)
-
-            if not isinstance(out, objects.Wire):
-                if isinstance(out, (dict, list, int, float, bool, str)):
-                    out = objects.Result(out)
-                else:   
-                    raise Exception('no')
+            out = wire.wrap(out)
         except Future as f:
             endpoint = self.endpoint_for(f.endpoint)
             pass

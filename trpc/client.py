@@ -5,7 +5,7 @@ import json
 
 from urllib.parse import urljoin, urlencode
 
-from . import objects
+from . import wire
 
 def wrap(self, session):
     if self.kind == 'Result':
@@ -92,7 +92,7 @@ class Session:
 
     def request(self, request):
         if isinstance(request, str):
-            request = objects.Request("GET", request, None, None)
+            request = wire.Request("GET", request, None, None)
 
         obj = request.cached
         if not obj:
@@ -100,19 +100,19 @@ class Session:
             if data is None:
                 data = b""
             else:
-                content_type, data = objects.Arguments(data).encode()
+                content_type, data = wire.Arguments(data).encode()
 
             urllib_request= urllib.request.Request(
                 url=request.url,
                 data=data,
                 method=request.verb,
-                headers={'Content-Type': objects.CONTENT_TYPE, 'Accept': objects.CONTENT_TYPE},
+                headers={'Content-Type': wire.CONTENT_TYPE, 'Accept': wire.CONTENT_TYPE},
             )
 
             with urllib.request.urlopen(urllib_request) as fh:
-                return objects.decode_file(fh, fh.getheader('content-type'), fh.url)
+                return wire.decode_file(fh, fh.getheader('content-type'), fh.url)
         else:
-            return objects.decode_object(obj, request.url)
+            return wire.decode_object(obj, request.url)
 
 
 
