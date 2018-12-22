@@ -15,22 +15,38 @@ other top level fields include
     'value' 'values' 'attributes' 'arguments' 'state'
 
 """
+
 import json
 from urllib.parse import urljoin, urlencode
 
 CONTENT_TYPE = "application/trpc+json"
 
-def decode(data, content_type):
-    if not data:
+def decode_file(obj, content_type, url):
+    if not obj:
         return None
     if content_type == CONTENT_TYPE:
-        return json.loads(data.decode('utf-8'))
+        return decode_object(json.load(obj), url)
 
-def encode(out, accept):
+def decode_bytes(obj, content_type):
+    if not obj:
+        return None
+    if content_type == CONTENT_TYPE:
+        return decode_object(json.loads(obj.decode('utf-8')), None)
+
+def decode_object(obj, url):
+    kind = obj.get('kind')
+    if kind == 'Arguments':
+        return Arguments(obj['values'])
+    else:
+        return Response(url, obj)
+
+def wrap(out):
     if not isinstance(out, Wire):
         out = Result(out)
-    
-    return out.encode(accept)
+    return out
+
+def encode(out, accept):
+    return wrap(out).encode(accept)
 
 class Request:
     def __init__(self, verb, url, data, cached):
@@ -43,6 +59,10 @@ class Wire:
     fields = () # top level field names
     metadata = () # metadata field names
     apiVersion = 'v0'
+
+    def __init__(self, **args):
+        for k in zip(self.fields, self.metadata):
+            setattr(self, k, args[k])
 
     @property
     def kind(self):
@@ -65,12 +85,12 @@ class Wire:
 
 
 class Response:
-    def __init__(self, base_url, kind, apiVersion, metadata, fields):
+    def __init__(self, base_url, obj):
         self.base_url = base_url
-        self.kind = kind
-        self.apiVersion = apiVersion
-        self.metadata = metadata
-        self.fields = fields
+        self.kind = obj.pop('kind')
+        self.apiVersion = obj.pop('apiVersion')
+        self.metadata = obj.pop('metadata')
+        self.fields = obj
 
     def __repr__(self):
         return self.kind

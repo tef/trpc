@@ -110,17 +110,9 @@ class Session:
             )
 
             with urllib.request.urlopen(urllib_request) as fh:
-                base_url = fh.url
-                obj = json.load(fh)
+                return objects.decode_file(fh, fh.getheader('content-type'), fh.url)
         else:
-            base_url = request.url
-
-        kind = obj.pop('kind')
-        apiVersion = obj.pop('apiVersion')
-        metadata = obj.pop('metadata')
-
-        return objects.Response(base_url, kind, apiVersion, metadata, obj)
-
+            return objects.decode_object(obj, request.url)
 
 
 

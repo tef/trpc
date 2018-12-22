@@ -185,9 +185,9 @@ class HTTPRequest:
         self.data = data
 
     def unwrap_arguments(self):
-        data = objects.decode(self.data, self.content_type)
-        if data and data['kind'] == 'Arguments':
-            return data['values']
+        data = objects.decode_bytes(self.data, self.content_type)
+        if isinstance(data, objects.Arguments):
+            return data.values
 
 class Future(Exception):
     def __init__(self, endpoint, args):
