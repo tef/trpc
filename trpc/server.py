@@ -186,8 +186,8 @@ class HTTPRequest:
 
     def unwrap_arguments(self):
         data = objects.decode(self.data, self.content_type)
-        if data and data['kind'] == 'Request':
-            return data['arguments']
+        if data and data['kind'] == 'Arguments':
+            return data['values']
 
 class Future(Exception):
     def __init__(self, endpoint, args):
@@ -220,6 +220,14 @@ class App:
             self.endpoints[obj] = e
             return e
 
+    def route_for(self, obj):
+        if self.endpoints.get(obj):
+            pass
+        elif isinstance(obj, types.MethodType):
+            pass
+        elif hasattr(obj, '__class__'):
+            pass
+
     def schema(self):
         return self.root.describe_trpc_endpoint(embed=True)
 
@@ -231,11 +239,19 @@ class App:
 
     def handle_request(self, request):
         route = Route(request, request.path.lstrip('/').split('/'), 0)
-        out = self.handle(self.name, self.root, route, request)
-
         accept = request.headers.get('accept', objects.CONTENT_TYPE).split(',')
-        if isinstance(out, (dict, list, int, float, bool, str)):
-            out = objects.Result(out)
+        
+        try:
+            out = self.handle(self.name, self.root, route, request)
+
+            if not isinstance(out, objects.Wire):
+                if isinstance(out, (dict, list, int, float, bool, str)):
+                    out = objects.Result(out)
+                else:   
+                    raise Exception('no')
+        except Future as f:
+            endpoint = self.endpoint_for(f.endpoint)
+            pass
 
         content_type, data = out.encode(accept)
         status = "200 Adequate"

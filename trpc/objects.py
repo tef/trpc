@@ -56,13 +56,14 @@ class Wire:
         return CONTENT_TYPE, data.encode('utf-8')
 
 
-class Request(Wire):
+
+class Arguments(Wire):
     apiVersion = 'v0'
-    fields = ('arguments',)
+    fields = ('values',)
     metadata = ()
 
-    def __init__(self,  arguments):
-        self.arguments = arguments
+    def __init__(self,  values):
+        self.values = values
 
 
 class Result(Wire):
@@ -85,10 +86,11 @@ class ResultSet(Wire):
 class FutureResult(Wire):
     apiVersion = 'v0'
     fields = ()
-    metadata = ('url', 'wait_seconds')
+    metadata = ('url', 'args', 'wait_seconds')
 
-    def __init__(self, url, wait_seconds=120):
+    def __init__(self, url, args, wait_seconds=120):
         self.url = url
+        self.args = args
         self.wait_seconds = wait_seconds
 
 class Procedure(Wire):

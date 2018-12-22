@@ -97,7 +97,7 @@ class Navigable(APIClient):
 
     def _fetch(self, req):
         if self._session:
-            response = self._session.fetch(req)
+            response = self._session.request(req)
             return response.wrap(self._session)
         else:
             return req
@@ -125,7 +125,7 @@ class Collection(APIClient):
 
     def _fetch(self, req):
         if self._session:
-            response = self._session.fetch(req)
+            response = self._session.request(req)
             return response.wrap(self._session)
         else:
             return req
@@ -158,7 +158,7 @@ class Session:
     def __init__(self):
         pass
 
-    def fetch(self, request):
+    def request(self, request):
         if isinstance(request, str):
             request = APIRequest("GET", request, None, None)
 
@@ -168,7 +168,7 @@ class Session:
             if data is None:
                 data = b""
             else:
-                content_type, data = objects.Request(data).encode()
+                content_type, data = objects.Arguments(data).encode()
 
             urllib_request= urllib.request.Request(
                 url=request.url,
@@ -194,7 +194,7 @@ class Session:
 
 def open(endpoint):
     session = Session()
-    obj = session.fetch(endpoint)
+    obj = session.request(endpoint)
     return obj.wrap(session)
 
     
