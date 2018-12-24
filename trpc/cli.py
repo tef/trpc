@@ -55,7 +55,18 @@ class CLI:
             req = obj.call(args, url)
             url, obj = self.session.request(req) 
 
-        print(obj.format())
+        if obj.kind == 'ResultSet':
+            while obj != None:
+                for value in obj.values:
+                    print(value)
+                req = obj.request_next(url)
+                if req:
+                    url, obj = self.session.request(req)
+                else:
+                    obj = None
+
+        else:
+            print(obj.format())
 
     def parse(self, argv, environ):
         mode = None

@@ -187,7 +187,11 @@ class Namespace(Message, Navigable):
 class ResultSet(Message):
     apiVersion = 'v0'
     fields = ('values',)
-    metadata = ('next',)
+    metadata = ('next','args',)
+    def request_next(self, base_url):
+        if self.next:
+            url = urljoin(base_url, self.next)
+            return Request('POST', url, self.args, None)
 
 class Collection(Message):
     apiVersion = 'v0'

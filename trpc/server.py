@@ -66,6 +66,12 @@ class Future:
         self.target = target
         self.args = args
 
+class Cursor:
+    def __init__(self, values, target, args):
+        self.values = values
+        self.target = target
+        self.args = args
+
 class Endpoint:
     def __init__(self, app, prefix, name, obj):
         pass
@@ -312,6 +318,13 @@ class App:
             route = self.route_for(out.target)
             url = "/{}".format("/".join(route))
             out = wire.FutureResult(url, out.args)
+        elif isinstance(out, Cursor):
+            if out.target:
+                route = self.route_for(out.target)
+                url = "/{}".format("/".join(route))
+            else:
+                url = None
+            out = wire.ResultSet(out.values, url, out.args)
         else:
             out = wire.wrap(out)
 

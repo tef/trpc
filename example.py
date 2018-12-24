@@ -8,7 +8,7 @@ or run ./example.py --schema to print the schema
 or run ./example.py Example:hello to run a server, run a command over http, then stop the server
 """
 
-from trpc.server import App, Future, Namespace, Service, rpc
+from trpc.server import App, Cursor, Future, Namespace, Service, rpc
 
 class Example(Service):
     @rpc()
@@ -17,6 +17,15 @@ class Example(Service):
 
     def hello_future(self):
         return Future(self.hello, dict(name="from the future"))
+
+    def hello_cursor(self):
+        return Cursor(list(range(0,5)), self.hello_next, dict(n=5))
+
+    def hello_next(self, n):
+        if n < 30:
+            return Cursor(list(range(n, n+5)), self.hello_next, dict(n=n+5))
+        else:
+            return Cursor(list(range(n, n+5)), None, None)
 
 namespace = {
     'Example': Example,
