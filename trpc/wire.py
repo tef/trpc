@@ -113,10 +113,8 @@ class Message:
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
 
-    def has_link(self, name):
-        return name in (getattr(self, 'links', ()) or ()) 
-
-    def open_link(self, name, base_url):
+class Navigable:
+    def get(self, name, base_url):
         links = self.links
         if name not in self.links:
             raise Exception(name)
@@ -129,11 +127,6 @@ class Message:
 
         return Request('GET', url, None, cached)
     
-class Arguments(Message):
-    apiVersion = 'v0'
-    fields = ('values',)
-    metadata = ()
-
 
 class Result(Message):
     apiVersion = 'v0'
@@ -151,6 +144,11 @@ class FutureResult(Message):
     def make_request(self, base_url):
         url = urljoin(base_url, self.url)
         return Request('POST', url, self.args, None)
+
+class Arguments(Message):
+    apiVersion = 'v0'
+    fields = ('values',)
+    metadata = ()
 
 class Procedure(Message):
     apiVersion = 'v0'
@@ -176,12 +174,12 @@ class Procedure(Message):
 
         return Request('POST', url, arguments, None)
 
-class Service(Message):
+class Service(Message, Navigable):
     apiVersion = 'v0'
     fields = ('name',)
     metadata = ('links', 'embeds', 'urls')
 
-class Namespace(Message):
+class Namespace(Message, Navigable):
     apiVersion = 'v0'
     fields = ('name', )
     metadata = ('links', 'embeds', 'urls')

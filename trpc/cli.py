@@ -46,7 +46,7 @@ class CLI:
         url, obj = self.session.request(endpoint)
 
         for p in path:
-            url, obj = self.session.request(obj.open_link(p, url))
+            url, obj = self.session.request(obj.get(p, url))
 
         if obj.kind == "Procedure" and mode == None:
             mode = "call"

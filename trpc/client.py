@@ -7,40 +7,36 @@ from urllib.parse import urljoin, urlencode
 
 from . import wire
 
-def wrap(url, obj, session):
-    if obj.kind == 'Result':
-        return obj.value
-    elif obj.kind == 'Namespace':
-        return Namespace(url, obj, session)
-    elif obj.kind == 'Service':
-        return Service(url, obj, session)
-    elif obj.kind == 'Collection':
-        return Collection(url, obj, session)
-    elif obj.kind == 'Procedure':
-        return Procedure(url, obj, session)
-    else:
-        return obj
-
 class APIClient:
-    def __init__(self, url, response, session=None):
+    Kinds = {}
+    def __init__(self, response, url, session=None):
         self._url = url
         self._response = response
         self._session = session
 
+    def __init_subclass__(cls):
+        cls.Kinds[cls.__name__] = cls
+
+    @classmethod
+    def wrap(cls, response, url, session):
+        if response.kind == 'Result':
+            return response.value
+        c = cls.Kinds.get(response.kind, cls)
+        return c(response, url, session)
+
+
     def _fetch(self, req):
         if self._session:
             url, response = self._session.request(req)
-            return wrap(url, response, self._session)
+            return self.wrap(response, url, self._session)
         else:
             return req
 
 
 class Navigable(APIClient):
     def __getattr__(self, name):
-        if self._response.has_link(name):
-            req = self._response.open_link(name, self._url)
-            return self._fetch(req)
-        raise Exception('no')
+        req = self._response.get(name, self._url)
+        return self._fetch(req)
 
 class Callable(APIClient):
     def __call__(self, **args):
@@ -120,6 +116,6 @@ class Session:
 def open(endpoint):
     session = Session()
     url, response = session.request(endpoint)
-    return wrap(url, response, session)
+    return APIClient.wrap(response, url, session)
 
     
