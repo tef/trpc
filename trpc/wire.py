@@ -116,9 +116,6 @@ class Message:
     def has_link(self, name):
         return name in (getattr(self, 'links', ()) or ()) 
 
-    def has_form(self, name):
-        return name in (getattr(self, 'forms', ()) or ())
-
     def open_link(self, name, base_url):
         links = self.links
         if name not in self.links:
@@ -132,31 +129,6 @@ class Message:
 
         return Request('GET', url, None, cached)
     
-    def submit_form(self, name, args, base_url):
-        url = self.urls.get(name, name)
-        url = urljoin(base_url, url)
-
-        if name not in self.forms:
-            if name in self.links:
-                return Request('GET', url, None)
-            raise Exception(name)
-
-        arguments = {}
-        form_args = self.forms[name]
-        if form_args:
-            while args:
-                name, value = args.pop(0)
-                if name is None:
-                    name = form_args.pop(0)
-                    arguments[name] = value
-                else:
-                    arguments[name] = value
-                    form_args.remove(name)
-        else:
-            arguments = args
-
-        return Request('POST', url, arguments, None)
-
 class Arguments(Message):
     apiVersion = 'v0'
     fields = ('values',)
@@ -177,7 +149,6 @@ class FutureResult(Message):
     metadata = ('url', 'args', 'wait_seconds')
 
     def make_request(self, base_url):
-        print(base_url, self.url)
         url = urljoin(base_url, self.url)
         return Request('POST', url, self.args, None)
 
@@ -208,12 +179,12 @@ class Procedure(Message):
 class Service(Message):
     apiVersion = 'v0'
     fields = ('name',)
-    metadata = ('links','forms', 'embeds', 'urls')
+    metadata = ('links', 'embeds', 'urls')
 
 class Namespace(Message):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('links','forms', 'embeds', 'urls')
+    metadata = ('links', 'embeds', 'urls')
 
 class ResultSet(Message):
     apiVersion = 'v0'
@@ -223,17 +194,17 @@ class ResultSet(Message):
 class Collection(Message):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('key','create', 'indexes', 'links','forms','embeds', 'urls')
+    metadata = ('key','create', 'indexes', 'links','embeds', 'urls')
 
 class Entry(Message):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('collection', 'links','forms', 'embeds', 'urls')
+    metadata = ('collection', 'links', 'embeds', 'urls')
 
 class EntrySet(Message):
     apiVersion = 'v0'
     fields = ('rows', 'columns' )
-    metadata = ('collection',  'links','forms', 'embeds', 'urls')
+    metadata = ('collection',  'links', 'embeds', 'urls')
 
 # Stream - one way
 

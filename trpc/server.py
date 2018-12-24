@@ -66,7 +66,6 @@ class Future:
         self.target = target
         self.args = args
 
-
 class Endpoint:
     def __init__(self, app, prefix, name, obj):
         pass
@@ -121,18 +120,15 @@ class ServiceEndpoint(Endpoint):
 
     def describe_trpc_endpoint(self, embed):
         links = []
-        forms = {}
         urls = {}
         embeds={}
         for key, m in self.service.__dict__.items():
             if getattr(m, '__rpc__', not key.startswith('_')) and isinstance(m, types.FunctionType):
                 links.append(key)
-                urls[key] = "{}/".format(key)
                 if embed:
                     embeds[key] = wire.Procedure(funcargs(m)).embed()
 
-        return wire.Service(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
-
+        return wire.Service(name=self.name, links=links, embeds=embeds, urls=urls)
 
 
 class Service:
@@ -192,13 +188,14 @@ class NamespaceEndpoint(Endpoint):
         for key, value in self.namespace.items():
             if isinstance(value, Endpoint):
                 links.append(key)
-                urls[key] = "{}/".format(key)
+                if not isinstance(value, FunctionEndpoint):
+                    urls[key] = "{}/".format(key)
                 if embed:
                     service = value.describe_trpc_endpoint(embed)
                     if service:
                         embeds[key] = service.embed()
 
-        return wire.Namespace(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
+        return wire.Namespace(name=self.name, links=links, embeds=embeds, urls=urls)
 
 class Namespace:
     def __init__(self):
@@ -257,29 +254,25 @@ class App:
     def make_endpoint(self, prefix, name, obj):
         if isinstance(name, type) and issubclass(obj, Endpoint):
             e = obj(self, prefix, name, obj)
-            for o in e.endpoint_for():
-                self.endpoints[o] = e
-            return e
         elif hasattr(obj, 'make_trpc_endpoint'):
             e = obj.make_trpc_endpoint(self, prefix, name, obj)
-            for o in e.endpoint_for():
-                self.endpoints[o] = e
-            return e
         elif isinstance(obj, dict):
             out = self.make_child_endpoints(prefix, name, obj)
             e = NamespaceEndpoint(self, prefix,  name, None, out)
-            for o in e.endpoint_for():
-                self.endpoints[o] = e
-            return e
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
             e = FunctionEndpoint(self, prefix, name, obj)
-            for o in e.endpoint_for():
-                self.endpoints[o] = e
-            return e
+        else:
+            raise Exception(obj)
+            return
+
+        for o in e.endpoint_for():
+            self.endpoints[o] = e
+        return e
 
     def make_child_endpoints(self, prefix, name, entries):
         out = {}
         for key, value in entries.items():
+            if key.startswith('_'): continue
             p = list(prefix)
             p.append(key)
             o = self.make_endpoint(p, key, value)
