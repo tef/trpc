@@ -35,10 +35,10 @@ def decode_bytes(obj, content_type):
 
 def decode_object(obj):
     kind = obj.get('kind')
-    return Wire.init_from_dict(obj)
+    return Message.init_from_dict(obj)
 
 def wrap(out):
-    if not isinstance(out, Wire):
+    if not isinstance(out, Message):
         out = Result(out)
     return out
 
@@ -52,7 +52,7 @@ class Request:
         self.data = data
         self.cached = cached
 
-class Wire:
+class Message:
     Kinds = {}
     fields = () # top level field names
     metadata = () # metadata field names
@@ -157,13 +157,13 @@ class Wire:
 
         return Request('POST', url, arguments, None)
 
-class Arguments(Wire):
+class Arguments(Message):
     apiVersion = 'v0'
     fields = ('values',)
     metadata = ()
 
 
-class Result(Wire):
+class Result(Message):
     apiVersion = 'v0'
     fields = ('value',)
     metadata = ()
@@ -171,42 +171,42 @@ class Result(Wire):
     def format(self):
         return str(self.value)
 
-class FutureResult(Wire):
+class FutureResult(Message):
     apiVersion = 'v0'
     fields = ()
     metadata = ('url', 'args', 'wait_seconds')
 
-class Procedure(Wire):
+class Procedure(Message):
     apiVersion = 'v0'
     fields = ('arguments',)
     metadata = ()
 
-class Service(Wire):
+class Service(Message):
     apiVersion = 'v0'
     fields = ('name',)
     metadata = ('links','forms', 'embeds', 'urls')
 
-class Namespace(Wire):
+class Namespace(Message):
     apiVersion = 'v0'
     fields = ('name', )
     metadata = ('links','forms', 'embeds', 'urls')
 
-class ResultSet(Wire):
+class ResultSet(Message):
     apiVersion = 'v0'
     fields = ('values',)
     metadata = ('next',)
 
-class Collection(Wire):
+class Collection(Message):
     apiVersion = 'v0'
     fields = ('name', )
     metadata = ('key','create', 'indexes', 'links','forms','embeds', 'urls')
 
-class Entry(Wire):
+class Entry(Message):
     apiVersion = 'v0'
     fields = ('name', )
     metadata = ('collection', 'links','forms', 'embeds', 'urls')
 
-class EntrySet(Wire):
+class EntrySet(Message):
     apiVersion = 'v0'
     fields = ('rows', 'columns' )
     metadata = ('collection',  'links','forms', 'embeds', 'urls')
