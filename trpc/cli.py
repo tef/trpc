@@ -43,21 +43,21 @@ class CLI:
             print("Set TRPC_URL first", file=sys.stderr)
             sys.exit(-1)
 
-        obj = self.session.request(endpoint)
+        url, obj = self.session.request(endpoint)
 
         for p in path[:-1]:
-            obj = self.session.request(obj.open_link(p))
+            url, obj = self.session.request(obj.open_link(p, url))
     
         if path:
             name = path[-1]
             if mode == None or mode == 'call':
                 if obj.has_link(name) and not args:
-                    req = obj.open_link(path[-1])
+                    req = obj.open_link(path[-1], url)
                 elif obj.has_form(name):
-                    req = obj.submit_form(path[-1], args)
+                    req = obj.submit_form(path[-1], args, url)
                 else:
                     raise Exception(name)
-                obj = self.session.request(req) 
+                url, obj = self.session.request(req) 
         if obj.kind == 'Result':
             print(obj.fields['value'])
         else:

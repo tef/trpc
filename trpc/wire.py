@@ -21,24 +21,31 @@ from urllib.parse import urljoin, urlencode
 
 CONTENT_TYPE = "application/trpc+json"
 
-def decode_file(obj, content_type, url):
+def decode_file(obj, content_type):
     if not obj:
         return None
     if content_type == CONTENT_TYPE:
-        return decode_object(json.load(obj), url)
+        return decode_object(json.load(obj))
 
 def decode_bytes(obj, content_type):
     if not obj:
         return None
     if content_type == CONTENT_TYPE:
-        return decode_object(json.loads(obj.decode('utf-8')), None)
+        return decode_object(json.loads(obj.decode('utf-8')))
 
-def decode_object(obj, url):
+def decode_object(obj):
     kind = obj.get('kind')
     if kind == 'Arguments':
         return Arguments(obj['values'])
+    elif kind == 'Service':
+        return Service(obj['name'],
+            forms=obj['metadata']['forms'],
+            links=obj['metadata']['links'],
+            urls=obj['metadata']['urls'],
+            embeds=obj['metadata']['embeds'],
+        )
     else:
-        return Response(url, obj)
+        return Response(obj)
 
 def wrap(out):
     if not isinstance(out, Wire):
@@ -61,6 +68,10 @@ class Wire:
     apiVersion = 'v0'
 
     def __init__(self, **args):
+        if self.kind != args['kind']:
+            raise Exception('no')
+        if self.apiVersion != args['apiVersion']:
+            raise Exception('no')
         for k in zip(self.fields, self.metadata):
             setattr(self, k, args[k])
 
@@ -82,11 +93,53 @@ class Wire:
     def encode(self, accept=None):
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
+    def has_link(self, name):
+        return name in getattr(self, 'links', ())
+
+    def has_form(self, name):
+        return name in getattr(self, 'forms', ())
+
+    def open_link(self, name, base_url):
+        links = self.links
+        if name not in self.links:
+            raise Exception(name)
+
+        url = self.urls.get(name, name)
+
+        url = urljoin(base_url, url)
+
+        cached = self.embeds.get(name)
+
+        return Request('GET', url, None, cached)
+    
+    def submit_form(self, name, args, base_url):
+        url = self.urls.get(name, name)
+        url = urljoin(base_url, url)
+
+        if name not in self.forms:
+            if name in self.links:
+                return Request('GET', url, None)
+            raise Exception(name)
+
+        arguments = {}
+        form_args = self.forms[name]
+        if form_args:
+            while args:
+                name, value = args.pop(0)
+                if name is None:
+                    name = form_args.pop(0)
+                    arguments[name] = value
+                else:
+                    arguments[name] = value
+                    form_args.remove(name)
+        else:
+            arguments = args
+
+        return Request('POST', url, arguments, None)
 
 
 class Response:
-    def __init__(self, base_url, obj):
-        self.base_url = base_url
+    def __init__(self, obj):
         self.kind = obj.pop('kind')
         self.apiVersion = obj.pop('apiVersion')
         self.metadata = obj.pop('metadata')
@@ -95,14 +148,14 @@ class Response:
     def __repr__(self):
         return self.kind
 
-    def open_link(self, name):
+    def open_link(self, name, base_url):
         links = self.metadata['links']
         if name not in links:
             raise Exception(name)
 
         url = self.metadata['urls'].get(name, name)
 
-        url = urljoin(self.base_url, url)
+        url = urljoin(base_url, url)
 
         cached = self.metadata.get('embeds',{}).get(name)
 
@@ -116,18 +169,18 @@ class Response:
         if 'forms' in self.metadata:
             return name in self.metadata['forms']
 
-    def submit_form(self, name, args):
+    def submit_form(self, name, args, base_url):
         links = self.metadata['links']
         forms = self.metadata['forms']
         if name not in forms:
             if name in links:
                 url = self.metadata['urls'].get(name, name)
-                url = urljoin(self.base_url, url)
+                url = urljoin(base_url, url)
                 return Request('GET', url, None)
             raise Exception(name)
 
         url = self.metadata['urls'].get(name, name)
-        url = urljoin(self.base_url, url)
+        url = urljoin(base_url, url)
         
         arguments = {}
         form_args = forms[name]

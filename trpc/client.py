@@ -7,39 +7,41 @@ from urllib.parse import urljoin, urlencode
 
 from . import wire
 
-def wrap(self, session):
-    if self.kind == 'Result':
-        return self.fields['value']
-    elif self.kind == 'Namespace':
-        return Namespace(self, session)
-    elif self.kind == 'Service':
-        return Service(self, session)
-    elif self.kind == 'Collection':
-        return Collection(self, session)
+def wrap(url, obj, session):
+    if obj.kind == 'Result':
+        return obj.fields['value']
+    elif obj.kind == 'Namespace':
+        return Namespace(url, obj, session)
+    elif obj.kind == 'Service':
+        return Service(url, obj, session)
+    elif obj.kind == 'Collection':
+        return Collection(url, obj, session)
     else:
-        return self
+        return obj
 
 class APIClient:
     pass
 
 class Navigable(APIClient):
-    def __init__(self, response, session=None):
+    def __init__(self, url, response, session=None):
+        self._url = url
         self._response = response
         self._session = session
 
     def _fetch(self, req):
         if self._session:
-            response = self._session.request(req)
-            return wrap(response, self._session)
+            url, response = self._session.request(req)
+            return wrap(url, response, self._session)
         else:
             return req
+
     def __getattr__(self, name):
         if self._response.has_link(name):
-            req = self._response.open_link(name)
+            req = self._response.open_link(name, self._url)
             return self._fetch(req)
         if self._response.has_form(name):
             def method(**args):
-                req = self._response.submit_form(name, args)
+                req = self._response.submit_form(name, args, self._url)
                 return self._fetch(req)
             return method
         raise Exception('no')
@@ -110,15 +112,15 @@ class Session:
             )
 
             with urllib.request.urlopen(urllib_request) as fh:
-                return wire.decode_file(fh, fh.getheader('content-type'), fh.url)
+                return fh.url, wire.decode_file(fh, fh.getheader('content-type'))
         else:
-            return wire.decode_object(obj, request.url)
+            return request.url, wire.decode_object(obj)
 
 
 
 def open(endpoint):
     session = Session()
-    obj = session.request(endpoint)
-    return wrap(response, session)
+    url, obj = session.request(endpoint)
+    return wrap(url, response, session)
 
     

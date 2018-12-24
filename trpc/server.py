@@ -56,7 +56,7 @@ class ServiceEndpoint(Endpoint):
             if getattr(m, '__rpc__', not key.startswith('_')):
                 if isinstance(m, types.FunctionType):
                     methods[key] = funcargs(m)
-        return wire.Service(self.name, links=(), forms=methods, urls=()) 
+        return wire.Service(name=self.name, links=(), forms=methods, urls=(), embeds=()) 
 
 class Service:
     def __init__(self, app, route, request):
@@ -201,7 +201,11 @@ class App:
         self.root = self.make_endpoint((), name, root)
 
     def make_endpoint(self, prefix, name, obj):
-        if hasattr(obj, 'make_trpc_endpoint'):
+        if isinstance(name, type) and issubclass(obj, Endpoint):
+            e = obj(self, prefix, name, obj)
+            self.endpoints[obj] = e
+            return e
+        elif hasattr(obj, 'make_trpc_endpoint'):
             e = obj.make_trpc_endpoint(self, prefix, name, obj)
             self.endpoints[obj] = e
             return e
@@ -231,18 +235,12 @@ class App:
     def schema(self):
         return self.root.describe_trpc_endpoint(embed=True)
 
-    def handle(self, name, obj, route, request):
-        if name.startswith('_'):
-            return
-        elif isinstance(obj, Endpoint):
-            return obj.handle_trpc_request(route, request)
-
     def handle_request(self, request):
         route = Route(request, request.path.lstrip('/').split('/'), 0)
         accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
         try:
-            out = self.handle(self.name, self.root, route, request)
+            out = self.root.handle_trpc_request(route, request)
             out = wire.wrap(out)
         except Future as f:
             endpoint = self.endpoint_for(f.endpoint)
