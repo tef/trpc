@@ -45,21 +45,17 @@ class CLI:
 
         url, obj = self.session.request(endpoint)
 
-        for p in path[:-1]:
+        for p in path:
             url, obj = self.session.request(obj.open_link(p, url))
+
+        if obj.kind == "Procedure" and mode == None:
+            mode = "call"
     
-        if path:
-            name = path[-1]
-            if mode == None or mode == 'call':
-                if obj.has_link(name) and not args:
-                    req = obj.open_link(path[-1], url)
-                elif obj.has_form(name):
-                    req = obj.submit_form(path[-1], args, url)
-                else:
-                    raise Exception(name)
-                url, obj = self.session.request(req) 
+        if mode == 'call':
+            req = obj.call(args, url)
+            url, obj = self.session.request(req) 
+
         print(obj.format())
-        return
 
     def parse(self, argv, environ):
         mode = None

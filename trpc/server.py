@@ -120,12 +120,18 @@ class ServiceEndpoint(Endpoint):
                         return attr(**data)
 
     def describe_trpc_endpoint(self, embed):
-        methods = {}
+        links = []
+        forms = {}
+        urls = {}
+        embeds={}
         for key, m in self.service.__dict__.items():
-            if getattr(m, '__rpc__', not key.startswith('_')):
-                if isinstance(m, types.FunctionType):
-                    methods[key] = funcargs(m)
-        return wire.Service(name=self.name, links={}, forms=methods, urls={}, embeds={}) 
+            if getattr(m, '__rpc__', not key.startswith('_')) and isinstance(m, types.FunctionType):
+                links.append(key)
+                urls[key] = "{}/".format(key)
+                if embed:
+                    embeds[key] = wire.Procedure(funcargs(m)).embed()
+
+        return wire.Service(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
 
 
 
@@ -185,15 +191,12 @@ class NamespaceEndpoint(Endpoint):
         urls = {}
         for key, value in self.namespace.items():
             if isinstance(value, Endpoint):
-                if isinstance(value, FunctionEndpoint):
-                    forms[key] = value.arguments()
-                else:
-                    links.append(key)
-                    urls[key] = "{}/".format(key)
-                    if embed:
-                        service = value.describe_trpc_endpoint(embed)
-                        if service:
-                            embeds[key] = service.embed()
+                links.append(key)
+                urls[key] = "{}/".format(key)
+                if embed:
+                    service = value.describe_trpc_endpoint(embed)
+                    if service:
+                        embeds[key] = service.embed()
 
         return wire.Namespace(name=self.name, links=links, forms=forms, embeds=embeds, urls=urls)
 
@@ -203,13 +206,7 @@ class Namespace:
 
     @staticmethod
     def make_trpc_endpoint(app, prefix,  name, obj):
-        out = {}
-        for key, value in obj.__dict__.items():
-            if not key.startswith("_"):
-                p = list(prefix)
-                p.append(key)
-                o = app.make_endpoint(p, key, value)
-                out[key] = o
+        out = app.make_child_endpoints(prefix, name, {k:v for k,v in obj.__dict__.items()})
         return NamespaceEndpoint(app, prefix, name, obj, entries=out)
 
 class FunctionEndpoint(Endpoint):
@@ -237,10 +234,10 @@ class FunctionEndpoint(Endpoint):
         if obj == self.service or isinstance(obj, self.service):
             return route
 
-
     def handle_trpc_request(self, route, request):
         if request.method == 'GET':
-            raise HTTPResponse('405 not allowed', (), [b'no'])
+            return self.describe_trpc_endpoint()
+
         elif request.method == 'POST':
             data = request.unwrap_arguments()
             if not data: data = {}
@@ -249,7 +246,7 @@ class FunctionEndpoint(Endpoint):
         raise HTTPResponse('405 not allowed', [], [b'no'])
 
     def describe_trpc_endpoint(self, embed):
-        return None
+        return wire.Procedure(self.arguments())
 
 class App:
     def __init__(self, name, root):
@@ -269,12 +266,7 @@ class App:
                 self.endpoints[o] = e
             return e
         elif isinstance(obj, dict):
-            out = {}
-            for key, value in obj.items():
-                p = list(prefix)
-                p.append(key)
-                o = self.make_endpoint(p, key, value)
-                out[key] = o
+            out = self.make_child_endpoints(prefix, name, obj)
             e = NamespaceEndpoint(self, prefix,  name, None, out)
             for o in e.endpoint_for():
                 self.endpoints[o] = e
@@ -284,6 +276,15 @@ class App:
             for o in e.endpoint_for():
                 self.endpoints[o] = e
             return e
+
+    def make_child_endpoints(self, prefix, name, entries):
+        out = {}
+        for key, value in entries.items():
+            p = list(prefix)
+            p.append(key)
+            o = self.make_endpoint(p, key, value)
+            out[key] = o
+        return out
 
     def route_for(self, obj):
         endpoint = self.endpoints.get(obj)

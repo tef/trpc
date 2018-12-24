@@ -186,6 +186,25 @@ class Procedure(Message):
     fields = ('arguments',)
     metadata = ()
 
+    def call(self, args, base_url):
+        url = base_url
+
+        arguments = {}
+        form_args = list(self.arguments)
+        if form_args:
+            while args:
+                name, value = args.pop(0)
+                if name is None:
+                    name = form_args.pop(0)
+                    arguments[name] = value
+                else:
+                    arguments[name] = value
+                    form_args.remove(name)
+        else:
+            arguments = args
+
+        return Request('POST', url, arguments, None)
+
 class Service(Message):
     apiVersion = 'v0'
     fields = ('name',)

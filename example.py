@@ -12,43 +12,17 @@ from trpc.server import App, Future, Namespace, Service, rpc
 
 class Example(Service):
     @rpc()
-    def hello(self):
-        return "world"
+    def hello(self, name):
+        return name
 
-    def echo(self, **args):
-        return {
-            "prefix": self.route.prefix,
-            "head": self.route.head,
-            "args": args,
-        }
-
-    def test(self, a):
-        return Future(self.test2, dict(a=1))
-
-    def test2(self, a):
-        return a
-
-class Two(Namespace):
-    class Example(Service):
-        def hello(self):
-            return "two"
-
-def nice(person):
-    return False
-
-def report():
-    return [1,2,3]
+    def hello_future(self):
+        return Future(self.hello, dict(name="from the future"))
 
 namespace = {
     'Example': Example,
-    'nice': nice,
-    'two': Two,
-    'nested': {
-        'report': report,
-    },
 }
 
-app = App('example', namespace) # WSGI App
+app = App('app', namespace) # WSGI App
 
 app.automain(__name__)
 
