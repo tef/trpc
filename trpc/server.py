@@ -56,7 +56,7 @@ class ServiceEndpoint(Endpoint):
             if getattr(m, '__rpc__', not key.startswith('_')):
                 if isinstance(m, types.FunctionType):
                     methods[key] = funcargs(m)
-        return wire.Service(name=self.name, links=(), forms=methods, urls=(), embeds=()) 
+        return wire.Service(name=self.name, links={}, forms=methods, urls={}, embeds={}) 
 
 class Service:
     def __init__(self, app, route, request):
