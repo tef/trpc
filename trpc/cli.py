@@ -58,15 +58,7 @@ class CLI:
                 else:
                     raise Exception(name)
                 url, obj = self.session.request(req) 
-        if obj.kind == 'Result':
-            print(obj.fields['value'])
-        else:
-            print(obj.kind)
-            for link in obj.metadata.get('links', ()):
-                print(link)
-            for form in obj.metadata.get('forms', ()):
-                print(form)
-            print(obj.fields)
+        print(obj.format())
         return
 
     def parse(self, argv, environ):

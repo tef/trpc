@@ -35,17 +35,7 @@ def decode_bytes(obj, content_type):
 
 def decode_object(obj):
     kind = obj.get('kind')
-    if kind == 'Arguments':
-        return Arguments(obj['values'])
-    elif kind == 'Service':
-        return Service(obj['name'],
-            forms=obj['metadata']['forms'],
-            links=obj['metadata']['links'],
-            urls=obj['metadata']['urls'],
-            embeds=obj['metadata']['embeds'],
-        )
-    else:
-        return Response(obj)
+    return Wire.init_from_dict(obj)
 
 def wrap(out):
     if not isinstance(out, Wire):
@@ -63,9 +53,32 @@ class Request:
         self.cached = cached
 
 class Wire:
+    Kinds = {}
     fields = () # top level field names
     metadata = () # metadata field names
     apiVersion = 'v0'
+
+    # subclass hook
+    def __init_subclass__(cls):
+        cls.Kinds[cls.__name__] = cls
+
+    # class methd ctor from obj
+    @classmethod
+    def init_from_dict(cls, obj):
+        kind = obj.pop('kind')
+        apiVersion = obj.pop('apiVersion')
+        metadata = obj.pop('metadata')
+        Kind = cls.Kinds.get(kind)
+        if not Kind: return
+        self = Kind.__new__(Kind)
+        for name in Kind.fields:
+            value = obj.get(name)
+            setattr(self, name, value)
+        for name in Kind.metadata:
+            value = metadata.get(name)
+            setattr(self, name, value)
+        return self
+
 
     def __init__(self, **args):
         if self.kind != args['kind']:
@@ -79,6 +92,9 @@ class Wire:
     def kind(self):
         return self.__class__.__name__
 
+    def format(self):
+        fields = {k:getattr(self, k) for k in self.fields}
+        return "{}: {}".format(self.kind, fields)
 
     def embed(self):
         fields = {k:getattr(self, k) for k in self.fields}
@@ -94,10 +110,10 @@ class Wire:
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
     def has_link(self, name):
-        return name in getattr(self, 'links', ())
+        return name in (getattr(self, 'links', ()) or ()) 
 
     def has_form(self, name):
-        return name in getattr(self, 'forms', ())
+        return name in (getattr(self, 'forms', ()) or ())
 
     def open_link(self, name, base_url):
         links = self.links
@@ -137,68 +153,6 @@ class Wire:
 
         return Request('POST', url, arguments, None)
 
-
-class Response:
-    def __init__(self, obj):
-        self.kind = obj.pop('kind')
-        self.apiVersion = obj.pop('apiVersion')
-        self.metadata = obj.pop('metadata')
-        self.fields = obj
-
-    def __repr__(self):
-        return self.kind
-
-    def open_link(self, name, base_url):
-        links = self.metadata['links']
-        if name not in links:
-            raise Exception(name)
-
-        url = self.metadata['urls'].get(name, name)
-
-        url = urljoin(base_url, url)
-
-        cached = self.metadata.get('embeds',{}).get(name)
-
-        return Request('GET', url, None, cached)
-
-    def has_link(self, name):
-        if 'links' in self.metadata:
-            return name in self.metadata['links']
-
-    def has_form(self, name):
-        if 'forms' in self.metadata:
-            return name in self.metadata['forms']
-
-    def submit_form(self, name, args, base_url):
-        links = self.metadata['links']
-        forms = self.metadata['forms']
-        if name not in forms:
-            if name in links:
-                url = self.metadata['urls'].get(name, name)
-                url = urljoin(base_url, url)
-                return Request('GET', url, None)
-            raise Exception(name)
-
-        url = self.metadata['urls'].get(name, name)
-        url = urljoin(base_url, url)
-        
-        arguments = {}
-        form_args = forms[name]
-        if form_args:
-            while args:
-                name, value = args.pop(0)
-                if name is None:
-                    name = form_args.pop(0)
-                    arguments[name] = value
-                else:
-                    arguments[name] = value
-                    form_args.remove(name)
-        else:
-            arguments = args
-
-        return Request('POST', url, arguments, None)
-
-
 class Arguments(Wire):
     apiVersion = 'v0'
     fields = ('values',)
@@ -215,6 +169,9 @@ class Result(Wire):
     def __init__(self, value):
         self.value = value
 
+    def format(self):
+        return str(self.value)
+
 class ResultSet(Wire):
     apiVersion = 'v0'
     fields = ('values',)
@@ -223,6 +180,7 @@ class ResultSet(Wire):
     def __init__(self, value, next=None):
         self.value = value
         self.next = Next
+
 
 class FutureResult(Wire):
     apiVersion = 'v0'
