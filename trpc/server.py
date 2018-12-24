@@ -21,17 +21,87 @@ def rpc(expose=True):
         return fn
     return _decorate
 
+class Route:
+    def __init__(self, request, path, index):
+        self.request = request
+        self.path = path
+        self.index = index
+
+    @property
+    def prefix(self):
+        return "/"+"/".join(self.path[:self.index])
+
+    @property
+    def head(self):
+        if self.index < len(self.path):
+            return self.path[self.index]
+        else:
+            return ''
+
+    def advance(self):
+        return Route(self.request, self.path, self.index+1)
+
+class HTTPResponse(Exception):
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers or []
+        self.body = body
+
+class HTTPRequest:
+    def __init__(self, method, path, params, headers, content_type, data):
+        self.method = method
+        self.path = path
+        self.params = params
+        self.headers = headers
+        self.content_type = content_type
+        self.data = data
+
+    def unwrap_arguments(self):
+        data = wire.decode_bytes(self.data, self.content_type)
+        if isinstance(data, wire.Arguments):
+            return data.values
+
+class Future(Exception):
+    def __init__(self, endpoint, args):
+        self.endpoint = endpoint
+        self.args = args
+
+
 class Endpoint:
     def __init__(self, app, prefix, name, obj):
         pass
+
+    def route_for(self, obj):
+        pass
+
+    def endpoint_for(self):
+        return ()
 
 class ServiceEndpoint(Endpoint):
     __rpc__ = False
 
     def __init__(self, app, prefix, name, service):
+        self.prefix = prefix
         self.app = app
         self.name = name
         self.service = service
+
+    def endpoint_for(self):
+        return (self.service,)
+
+    def route_for(self, obj):
+        route = list(self.prefix)
+        route.append(self.name)
+        if obj == self.service or isinstance(obj, self.service):
+            return route
+
+        route.append(obj.__name__)
+        obj = obj.__self__
+        if obj == self.service or isinstance(obj, self.service):
+            return route
+
+    def endpoint_for(self):
+        return (self.service,)
 
     def handle_trpc_request(self, route, request):
         second = route.head
@@ -58,6 +128,8 @@ class ServiceEndpoint(Endpoint):
                     methods[key] = funcargs(m)
         return wire.Service(name=self.name, links={}, forms=methods, urls={}, embeds={}) 
 
+
+
 class Service:
     def __init__(self, app, route, request):
         self.app = app
@@ -73,8 +145,22 @@ class NamespaceEndpoint(Endpoint):
 
     def __init__(self, app, prefix, name, namespace):
         self.app = app
+        self.prefix = prefix
         self.name = name
         self.namespace = namespace
+
+    def endpoint_for(self):
+        return ()
+
+    def route_for(self, obj):
+        route = list(self.prefix)
+        route.append(self.name)
+        if obj == self.namespace:
+            return route
+
+        if obj in self.namespace:
+            route.append(obj.__name__)
+            return route
 
     def handle_trpc_request(self, route, request):
         first = route.head
@@ -136,6 +222,21 @@ class FunctionEndpoint(Endpoint):
     def arguments(self):
         return funcargs(self.fn)
 
+    def endpoint_for(self):
+        return (self.fn,)
+
+    def route_for(self, obj):
+        route = list(self.prefix)
+        route.append(self.name)
+        if obj == self.service or isinstance(obj, self.service):
+            return route
+
+        route.append(obj.__name__)
+        obj = obj.__self__
+        if obj == self.service or isinstance(obj, self.service):
+            return route
+
+
     def handle_trpc_request(self, route, request):
         if request.method == 'GET':
             raise HTTPResponse('405 not allowed', (), [b'no'])
@@ -148,51 +249,6 @@ class FunctionEndpoint(Endpoint):
 
     def describe_trpc_endpoint(self, embed):
         return None
-
-class Route:
-    def __init__(self, request, path, index):
-        self.request = request
-        self.path = path
-        self.index = index
-
-    @property
-    def prefix(self):
-        return "/"+"/".join(self.path[:self.index])
-
-    @property
-    def head(self):
-        if self.index < len(self.path):
-            return self.path[self.index]
-        else:
-            return ''
-
-    def advance(self):
-        return Route(self.request, self.path, self.index+1)
-
-class HTTPResponse(Exception):
-    def __init__(self, status, headers, body):
-        self.status = status
-        self.headers = headers or []
-        self.body = body
-
-class HTTPRequest:
-    def __init__(self, method, path, params, headers, content_type, data):
-        self.method = method
-        self.path = path
-        self.params = params
-        self.headers = headers
-        self.content_type = content_type
-        self.data = data
-
-    def unwrap_arguments(self):
-        data = wire.decode_bytes(self.data, self.content_type)
-        if isinstance(data, wire.Arguments):
-            return data.values
-
-class Future(Exception):
-    def __init__(self, endpoint, args):
-        self.endpoint = endpoint
-        self.args = args
 
 class App:
     def __init__(self, name, root):
@@ -225,12 +281,24 @@ class App:
             return e
 
     def route_for(self, obj):
-        if self.endpoints.get(obj):
-            pass
-        elif isinstance(obj, types.MethodType):
-            pass
-        elif hasattr(obj, '__class__'):
-            pass
+        endpoint = self.endpoints.get(obj)
+        if endpoint:
+            return obj.route_for(obj) 
+
+        instance = getattr(obj, '__self__', None)
+        if instance:
+            endpoint = self.endpoints.get(instance)
+            if endpoint:
+                return obj.route_for(obj) 
+            cls = getattr(obj, '__class__', None)
+            endpoint = self.endpoints.get(cls)
+            if endpoint:
+                return obj.route_for(obj) 
+
+        cls = getattr(obj, '__class__', None)
+        endpoint = self.endpoints.get(cls)
+        if endpoint:
+            return obj.route_for(obj) 
 
     def schema(self):
         return self.root.describe_trpc_endpoint(embed=True)
