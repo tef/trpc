@@ -176,6 +176,11 @@ class FutureResult(Message):
     fields = ()
     metadata = ('url', 'args', 'wait_seconds')
 
+    def make_request(self, base_url):
+        print(base_url, self.url)
+        url = urljoin(base_url, self.url)
+        return Request('POST', url, self.args, None)
+
 class Procedure(Message):
     apiVersion = 'v0'
     fields = ('arguments',)

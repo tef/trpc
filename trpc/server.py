@@ -61,9 +61,9 @@ class HTTPRequest:
         if isinstance(data, wire.Arguments):
             return data.values
 
-class Future(Exception):
-    def __init__(self, endpoint, args):
-        self.endpoint = endpoint
+class Future:
+    def __init__(self, target, args):
+        self.target = target
         self.args = args
 
 
@@ -91,7 +91,6 @@ class ServiceEndpoint(Endpoint):
 
     def route_for(self, obj):
         route = list(self.prefix)
-        route.append(self.name)
         if obj == self.service or isinstance(obj, self.service):
             return route
 
@@ -143,18 +142,20 @@ class Service:
 class NamespaceEndpoint(Endpoint):
     __rpc__ = False
 
-    def __init__(self, app, prefix, name, namespace):
+    def __init__(self, app, prefix, name, cls, entries):
         self.app = app
         self.prefix = prefix
         self.name = name
-        self.namespace = namespace
+        self.cls = cls
+        self.namespace = entries
 
     def endpoint_for(self):
+        if self.cls:
+            return (self.cls,)
         return ()
 
     def route_for(self, obj):
         route = list(self.prefix)
-        route.append(self.name)
         if obj == self.namespace:
             return route
 
@@ -203,13 +204,13 @@ class Namespace:
     @staticmethod
     def make_trpc_endpoint(app, prefix,  name, obj):
         out = {}
-        p = list(prefix)
-        p.append(name)
         for key, value in obj.__dict__.items():
             if not key.startswith("_"):
-                o = app.make_endpoint(prefix, key, value)
+                p = list(prefix)
+                p.append(key)
+                o = app.make_endpoint(p, key, value)
                 out[key] = o
-        return NamespaceEndpoint(app, prefix, name, out)
+        return NamespaceEndpoint(app, prefix, name, obj, entries=out)
 
 class FunctionEndpoint(Endpoint):
     __rpc__ = False
@@ -259,46 +260,51 @@ class App:
     def make_endpoint(self, prefix, name, obj):
         if isinstance(name, type) and issubclass(obj, Endpoint):
             e = obj(self, prefix, name, obj)
-            self.endpoints[obj] = e
+            for o in e.endpoint_for():
+                self.endpoints[o] = e
             return e
         elif hasattr(obj, 'make_trpc_endpoint'):
             e = obj.make_trpc_endpoint(self, prefix, name, obj)
-            self.endpoints[obj] = e
+            for o in e.endpoint_for():
+                self.endpoints[o] = e
             return e
         elif isinstance(obj, dict):
             out = {}
-            prefix = list(prefix)
-            prefix.append(name)
             for key, value in obj.items():
-                o = self.make_endpoint(prefix, key, value)
+                p = list(prefix)
+                p.append(key)
+                o = self.make_endpoint(p, key, value)
                 out[key] = o
-            e = NamespaceEndpoint(self, prefix,  name, out)
-            # self.endpoints[obj] = e
+            e = NamespaceEndpoint(self, prefix,  name, None, out)
+            for o in e.endpoint_for():
+                self.endpoints[o] = e
             return e
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
             e = FunctionEndpoint(self, prefix, name, obj)
-            self.endpoints[obj] = e
+            for o in e.endpoint_for():
+                self.endpoints[o] = e
             return e
 
     def route_for(self, obj):
         endpoint = self.endpoints.get(obj)
-        if endpoint:
-            return obj.route_for(obj) 
+        if endpoint is not None:
+            return endpoint.route_for(obj) 
 
         instance = getattr(obj, '__self__', None)
-        if instance:
+        if instance is not None:
             endpoint = self.endpoints.get(instance)
-            if endpoint:
-                return obj.route_for(obj) 
-            cls = getattr(obj, '__class__', None)
+            if endpoint is not None:
+                return endpoint.route_for(obj) 
+
+            cls = getattr(instance, '__class__', None)
             endpoint = self.endpoints.get(cls)
-            if endpoint:
-                return obj.route_for(obj) 
+            if endpoint is not None:
+                return endpoint.route_for(obj) 
 
         cls = getattr(obj, '__class__', None)
         endpoint = self.endpoints.get(cls)
-        if endpoint:
-            return obj.route_for(obj) 
+        if endpoint is not None:
+            return endpoint.route_for(obj) 
 
     def schema(self):
         return self.root.describe_trpc_endpoint(embed=True)
@@ -307,12 +313,13 @@ class App:
         route = Route(request, request.path.lstrip('/').split('/'), 0)
         accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
-        try:
-            out = self.root.handle_trpc_request(route, request)
+        out = self.root.handle_trpc_request(route, request)
+        if isinstance(out, Future):
+            route = self.route_for(out.target)
+            url = "/{}".format("/".join(route))
+            out = wire.FutureResult(url, out.args)
+        else:
             out = wire.wrap(out)
-        except Future as f:
-            endpoint = self.endpoint_for(f.endpoint)
-            pass
 
         content_type, data = out.encode(accept)
         status = "200 Adequate"

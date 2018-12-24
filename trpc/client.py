@@ -92,7 +92,7 @@ class Session:
     def __init__(self):
         pass
 
-    def request(self, request):
+    def raw_request(self, request):
         if isinstance(request, str):
             request = wire.Request("GET", request, None, None)
 
@@ -116,7 +116,13 @@ class Session:
         else:
             return request.url, wire.decode_object(obj)
 
-
+    def request(self, request):
+        while True:
+            url, result = self.raw_request(request)
+            if isinstance(result, wire.FutureResult):
+                request = result.make_request(url)
+            else:
+                return url, result
 
 def open(endpoint):
     session = Session()
