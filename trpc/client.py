@@ -24,14 +24,12 @@ class APIClient:
         c = cls.Kinds.get(response.kind, cls)
         return c(response, url, session)
 
-
     def _fetch(self, req):
         if self._session:
             url, response = self._session.request(req)
             return self.wrap(response, url, self._session)
         else:
             return req
-
 
 class Navigable(APIClient):
     def __getattr__(self, name):
@@ -40,7 +38,7 @@ class Navigable(APIClient):
 
 class Callable(APIClient):
     def __call__(self, **args):
-        req = self._response.call(args, self._url)
+        req = self._response.call(list(args.items()), self._url)
         return self._fetch(req)
 
 class Namespace(Navigable):

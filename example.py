@@ -13,7 +13,7 @@ from trpc.server import App, Future, Namespace, Service, rpc
 class Example(Service):
     @rpc()
     def hello(self, name):
-        return name
+        return "Hello, {}!".format(name)
 
     def hello_future(self):
         return Future(self.hello, dict(name="from the future"))
