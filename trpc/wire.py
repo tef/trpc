@@ -80,13 +80,16 @@ class Wire:
         return self
 
 
-    def __init__(self, **args):
-        if self.kind != args['kind']:
-            raise Exception('no')
-        if self.apiVersion != args['apiVersion']:
-            raise Exception('no')
-        for k in zip(self.fields, self.metadata):
-            setattr(self, k, args[k])
+    def __init__(self, *args, **kwargs):
+        names = list()
+        names.extend(self.fields)
+        names.extend(self.metadata)
+        for value in args:
+            name = names.pop(0)
+            setattr(self, name, value)
+        for name in names:
+            value = kwargs.get(name)
+            setattr(self, name, value)
 
     @property
     def kind(self):
@@ -109,6 +112,7 @@ class Wire:
     def encode(self, accept=None):
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
+
     def has_link(self, name):
         return name in (getattr(self, 'links', ()) or ()) 
 
@@ -158,16 +162,11 @@ class Arguments(Wire):
     fields = ('values',)
     metadata = ()
 
-    def __init__(self,  values):
-        self.values = values
 
 class Result(Wire):
     apiVersion = 'v0'
     fields = ('value',)
     metadata = ()
-
-    def __init__(self, value):
-        self.value = value
 
     def format(self):
         return str(self.value)
@@ -228,7 +227,7 @@ class Namespace(Wire):
 class Collection(Wire):
     apiVersion = 'v0'
     fields = ('name', )
-    metadata = ('key','indexes', 'links','forms','embeds', 'urls')
+    metadata = ('key','create', 'indexes', 'links','forms','embeds', 'urls')
 
     def __init__(self, name, key,  create, indexes, links=(), forms=(), embeds=(), urls=()):
         self.name = name
