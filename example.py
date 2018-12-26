@@ -14,7 +14,7 @@ class Example(Service):
     @rpc(
         command_line = dict(name="string")
     )
-    def hello(self, name):
+    def hello(self, name: str) -> str:
         return "Hello, {}!".format(name)
 
     @rpc()

@@ -4,16 +4,50 @@ import sys
 import os
 import inspect
 
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlencode, parse_qsl
+from functools import singledispatch
+
+def type_to_kind(cls):
+    if cls == None:
+        return "any"
+    elif cls == str:
+        return "string"
+    elif cls == list or cls == tuple:
+        return "list"
+    elif cls == float:
+        return "float"
+    elif cls == int:
+        return "integer"
+    elif cls == bool:
+        return "boolean"
+    elif cls == bytes or cls == bytearray:
+        return "bytestring"
+    elif cls == set:
+        return "set"
+    elif cls == datetime:
+        return "datetime"
+    elif cls == timedelta:
+        return "duration"
+    elif cls == dict:
+        return "object"
 
 from . import wire, client, cli, wsgi
 
 def funcargs(m):
     signature = inspect.signature(m)
+    args = {}
+    for name, p in signature.parameters.items():
+        if name == 'self': continue
+        if name.startswith('_') and p.default == p.empty: raise Exception('no')
+        args[name] = type_to_kind(p.annotation)
+
+    print(args)
+
     args = signature.parameters
     args = [a for a in args if not a.startswith('_')]
     if args and args[0] == 'self': args.pop(0)
-    return args
+    return {n:"any" for n in args}
 
 def call_function(fn, route, request):
     data = request.unwrap_arguments()
@@ -26,7 +60,8 @@ def call_raw_function(fn, route, request):
 def argspec_for_kind(kind):
     if kind == "any":
         return "json_or_scalar"
-    raise Exception("bug")
+    print(kind)
+    raise Exception(kind)
 
 def rpc(raw_args=None, command_line=None):
     def _decorate(fn):
@@ -37,7 +72,7 @@ def rpc(raw_args=None, command_line=None):
         else:
             fn.__trpc__ = call_function
             arguments = funcargs(fn)
-            fn.arguments = {k:"any" for k in arguments}
+            fn.arguments = arguments
             if command_line:
                 fn.command_line = command_line
             else:
