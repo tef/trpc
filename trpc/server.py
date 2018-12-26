@@ -19,14 +19,14 @@ def call_function(fn, route, request):
     data = request.unwrap_arguments()
     return fn(**data) if data else fn()
 
-def call_vararg_function(fn, route, request):
+def call_raw_function(fn, route, request):
     data = request.unwrap_arguments()
     return fn(data) if data else fn()
 
-def rpc(varargs=None, command_line=None):
+def rpc(raw_args=None, command_line=None):
     def _decorate(fn):
-        if varargs:
-            fn.__trpc__ = call_vararg_function
+        if raw_args:
+            fn.__trpc__ = call_raw_function
             fn.arguments = None
         else:
             fn.__trpc__ = call_function
