@@ -23,15 +23,35 @@ def call_raw_function(fn, route, request):
     data = request.unwrap_arguments()
     return fn(data) if data else fn()
 
+def argspec_for_kind(kind):
+    if kind == "any":
+        return "json_or_scalar"
+    raise Exception("bug")
+
 def rpc(raw_args=None, command_line=None):
     def _decorate(fn):
         if raw_args:
             fn.__trpc__ = call_raw_function
             fn.arguments = None
+            fn.argument_types = None
+            fn.command_line = command_line
         else:
             fn.__trpc__ = call_function
             fn.arguments = funcargs(fn)
-        fn.command_line = command_line
+            fn.argument_types = {k:"any" for k in fn.arguments}
+            if command_line:
+                fn.command_line = command_line
+            else:
+                argspec = {}
+                if len(fn.arguments) > 1:
+                    for k,v in fn.argument_types.items():
+                        kind = argspec_for_kind(v)
+                        argspec[k] = "--{}".format(kind)
+                elif len(fn.arguments) == 1:
+                    for k,v in fn.argument_types.items():
+                        kind = argspec_for_kind(v)
+                        argspec[k] = kind
+                fn.command_line = argspec
         return fn
     return _decorate
 
@@ -148,7 +168,7 @@ class ServiceEndpoint(Endpoint):
             if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
                 links.append(key)
                 if embed:
-                    embeds[key] = wire.Procedure(m.arguments, m.command_line).embed()
+                    embeds[key] = wire.Procedure(m.arguments, m.command_line, m.argument_types).embed()
 
         return wire.Service(name=self.name, links=links, embeds=embeds, urls=urls)
 
@@ -263,7 +283,7 @@ class FunctionEndpoint(Endpoint):
         raise HTTPResponse('405 not allowed', [], [b'no'])
 
     def describe_trpc_endpoint(self, embed):
-        return wire.Procedure(self.arguments(), self.fn.command_line)
+        return wire.Procedure(self.fn.arguments, self.fn.command_line, self.fn.argument_types)
 
 class App:
     def __init__(self, name, root):

@@ -176,7 +176,7 @@ class Arguments(Message):
 
 class Procedure(Message):
     apiVersion = 'v0'
-    fields = ('arguments','command_line')
+    fields = ('arguments','command_line', 'types')
     metadata = ()
 
     def call(self, arguments):
@@ -212,7 +212,7 @@ class ResultSet(Message):
     metadata = ('next','args',)
     def request_next(self):
         if self.next:
-            return Request('call', self.url, self.args, None)
+            return Request('call', self.next, self.args, None)
 
 class Collection(Message):
     apiVersion = 'v0'

@@ -7,6 +7,7 @@ import shutil
 import unicodedata
 import contextlib
 import os.path
+import json
 
 from datetime import datetime, timezone
 
@@ -89,7 +90,7 @@ class ArgumentParser:
     """
         
     KINDS = set((
-        'str', 'string', 'scalar',
+        'str', 'string', 'json', 'json_or_scalar',
         'bool', 'boolean', 
         'int', 'integer',
         'num', 'number', 'float',
@@ -153,9 +154,9 @@ class ArgumentParser:
                 rule, kind = argspec[name]
                 if rule in ('positional+', 'positional*'):
                     if name not in fn_args: fn_args[name] = []
-                    fn_args[name].append(self.parse_argument(kind, value))
+                    fn_args[name].append(parse_argument(kind, value))
                 else:
-                    fn_args[name] = self.parse_argument(kind, value)
+                    fn_args[name] = parse_argument(kind, value)
             elif name not in argspec:
                 raise Error('unknown arg: --{}'.format(name))
             else:
@@ -163,7 +164,7 @@ class ArgumentParser:
                 if kind == 'bool' and value is None:
                     value = True
                 else:
-                    value = self.parse_argument(kind, value)
+                    value = parse_argument(kind, value)
                 if rule in ('named+', 'named*', 'positional*', 'positional+'):
                     if name not in fn_args: fn_args[name] = []
                     fn_args[name].append(value)
@@ -194,34 +195,6 @@ class ArgumentParser:
                     out.append('<{}>'.format(kind))
             raise Error("missing arguments: {}".format(" ".join(out)))
         return fn_args
-
-    def parse_argument(self, kind, value):
-        if kind in (None, "str", "string"):
-            return value
-        elif kind in ("path", "file", "dir"):
-            return os.path.normpath(os.path.join(os.getcwd(), value))
-        elif kind in ("int","integer"):
-            try:
-                return int(value)
-            except ValueError:
-                raise Error('got {} expecting integer'.format(value))
-        elif kind in ("float","num", "number"):
-            try:
-                return float(value)
-            except ValueError:
-                raise Error('got {} expecting float'.format(value))
-        elif kind in ("bool", "boolean"):
-            try:
-                return {'true':True, 'false':False, None: True}[value]
-            except KeyError:
-                raise Error('expecting true/false, got {}'.format(value))
-        elif kind == "scalar":
-            try: return int(value)
-            except: pass
-            try: return float(arg)
-            except: pass
-            return value
-        return value
 
     def complete_named(self, args):
         arg = args[-1]
@@ -301,6 +274,42 @@ class ArgumentParser:
                 out.extend(vals)
         return out
 
+def parse_argument(kind, value):
+    print(value)
+    if kind in (None, "str", "string"):
+        return value
+    elif kind in ("path", "file", "dir"):
+        return os.path.normpath(os.path.join(os.getcwd(), value))
+    elif kind in ("int","integer"):
+        try:
+            return int(value)
+        except ValueError:
+            raise Error('got {} expecting integer'.format(value))
+    elif kind in ("float","num", "number"):
+        try:
+            return float(value)
+        except ValueError:
+            raise Error('got {} expecting float'.format(value))
+    elif kind in ("bool", "boolean"):
+        try:
+            return {'true':True, 'false':False, None: True}[value]
+        except KeyError:
+            raise Error('expecting true/false, got {}'.format(value))
+    elif kind == "json":
+        try:
+            return json.loads(value)
+        except ValueError:
+            raise Error('got {} expecting json'.format(value))
+    elif kind == "json_or_scalar":
+        try: return int(value)
+        except: pass
+        try: return float(value)
+        except: pass
+        try: return json.loads(value)
+        except: raise # pass
+        return value
+    return value
+
 
 class CLI:
     MODES = set((
@@ -353,7 +362,7 @@ class CLI:
         if mode == 'call':
             if obj.command_line:
                 a = ArgumentParser(obj.command_line)
-                args = a.parse(args)
+                arguments = a.parse(args)
             elif obj.arguments is not None:
                 arguments = {}
                 form_args = list(obj.arguments)
@@ -365,11 +374,14 @@ class CLI:
                     else:
                         arguments[name] = value
                         form_args.remove(name)
-                args = arguments
             else:
-                arguments = dict(args)
+                arguments = {}
+                for k,v in args:
+                    if k is None: raise Exception('no')
+                    print(k,v)
+                    arguments[k] = parse_argument('json_or_scalar', v)
 
-            req = obj.call(args)
+            req = obj.call(arguments)
             url, obj = self.session.request(req, url) 
 
         with PAGER() as (stdout, width):
