@@ -62,6 +62,7 @@ def call_raw_function(fn, route, request):
 def argspec_for_kind(kind):
     if kind is None: return "json"
     if kind == "any": return "json_or_scalar"
+    if kind == "string": return "string"
     if kind[0] == "list":
         if kind[1] == "string": return "str*"
         if kind[1] == "integer": return "int*"
@@ -321,7 +322,9 @@ class App:
             e = obj.make_trpc_endpoint(self, prefix, name, obj)
         elif isinstance(obj, dict):
             out = self.make_child_endpoints(prefix, name, obj)
-            e = NamespaceEndpoint(self, prefix,  name, None, out)
+            class _Namespace(Namespace):
+                pass
+            e = NamespaceEndpoint(self, prefix,  name, _Namespace, out)
         elif isinstance(obj, (types.FunctionType, types.MethodType)):
             e = FunctionEndpoint(self, prefix, name, obj)
         else:
@@ -368,7 +371,6 @@ class App:
 
     def handle_request(self, request):
         route = Route(request, request.url.lstrip('/').split('/'), 0)
-        accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
         out = self.root.handle_trpc_request(route, request)
         if isinstance(out, Redirect):
@@ -392,10 +394,8 @@ class App:
         else:
             out = wire.wrap(out)
 
-        content_type, data = out.encode(accept)
-        status = "200 Adequate"
-        headers = [("content-type", content_type)]
-        return wire.HTTPResponse(status, headers, [data])
+        return out
+
 
     def __call__(self, environ, start_response):
         try:
@@ -413,11 +413,16 @@ class App:
             else:
                 data = None
             headers = {name[5:].lower():value for name, value in environ.items() if name.startswith('HTTP_')}
+            accept = headers.get('accept', wire.CONTENT_TYPE).split(',')
 
             try:
                 request = wire.HTTPRequest(method, path, parameters, headers, content_type, data, None)
-                response = self.handle_request(request)
+                out = self.handle_request(request)
 
+                content_type, data = out.encode(accept)
+                status = "200 Adequate"
+                headers = [("content-type", content_type)]
+                response = wire.HTTPResponse(status, headers, [data])
             except wire.HTTPResponse as r:
                 response = r
 
@@ -439,40 +444,70 @@ class App:
         self.main(port)
 
     def main(self,port=1729):
-        if sys.argv[1:] == ['--schema',]:
-            import json
-            schema = self.schema()
-            obj = schema.embed()
-            print(json.dumps(obj, indent=4))
-            return
+        serve = False
+        if 'COMP_LINE' not in os.environ and 'COMP_POINT' not in os.environ:
+            argv = list()
+            for arg in sys.argv[1:]:
+                if arg.startswith('--port='):
+                    port = int(arg[7:])
+                elif arg == "--serve":
+                    serve = True
+                else:
+                   argv.append(arg)
 
-        argv = list()
-        for arg in sys.argv[1:]:
-           if arg.startswith('--port='):
-               port = int(arg[7:])
-           else:
-               argv.append(arg)
+            if sys.argv[1:] == ['--schema',]:
+                import json
+                schema = self.schema()
+                obj = schema.embed()
+                print(json.dumps(obj, indent=4))
+                return
+        else:
+            argv = sys.argv[1:]
+
+        if not serve:
+            schema = self.schema().embed()
+            environ = dict(os.environ)
+            environ['TRPC_URL'] = wire.Request('get', '/', None, schema)
+
+            session = AppSession(self)
+            return cli.CLI(session).main(argv, environ)
+
 
         s = wsgi.WSGIServer(self, port=port, request_handler=wsgi.WSGIRequestHandler)
 
         try:
-           s.start()
+            s.start()
+            url = s.url
+            schema = None
 
-           environ = dict(os.environ)
-           environ['TRPC_URL'] = s.url
+            environ = dict(os.environ)
+            environ['TRPC_URL'] = wire.Request('get', url, None, schema)
+           
+            session = client.Session()
+            if argv:
+                cli.CLI(session).main(argv, environ)
+            else:
+                print()
+                print(s.url)
+                print('Press ^C to exit')
 
-           session = client.Session()
-           if argv:
-               cli.CLI(session).main(argv, environ)
-           else:
-               print()
-               print(s.url)
-               print('Press ^C to exit')
-
-               while True:
-                   pass
+                while True:
+                    pass
         except KeyboardInterrupt:
-           pass
+            pass
         finally:
-           s.stop()
+            s.stop()
 
+class AppSession(client.Session):
+    def __init__(self, app):
+        self.app = app
+
+    def raw_request(self, request, base_url):
+        if request.cached:
+            out = wire.decode_object(request.cached)
+            url = urljoin(base_url, request.path)
+            return url, out
+        else:
+            request = request.make_http(base_url)
+            out = self.app.handle_request(request)
+            return request.url, out

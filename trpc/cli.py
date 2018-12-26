@@ -333,20 +333,21 @@ class CLI:
                 sys.exit(0)
 
             prefix = line[:offset].split(' ')
-            for o in self.complete(prefix):
+            for o in self.complete(environ, prefix):
                 print(o)
             sys.exit(0)
 
         mode, path, args = self.parse(argv, environ)
-        self.run(mode, path, args, environ)
 
-    def run(self, mode, path, args, environ):
         endpoint = environ.get("TRPC_URL", "")
 
         if not endpoint:
             print("Set TRPC_URL first", file=sys.stderr)
             sys.exit(-1)
 
+        self.run(endpoint, mode, path, args)
+    
+    def run(self, endpoint, mode, path, args):
         url, obj = self.session.request(endpoint, None)
 
         for p in path:
@@ -424,8 +425,8 @@ class CLI:
                 args.append((name, value))
         return mode, path, args
 
-    def complete(self, prefix):
-        endpoint = os.environ.get("TRPC_URL", "")
+    def complete(self, environ, prefix):
+        endpoint = environ.get("TRPC_URL", "")
 
         if not endpoint:
             return ()
