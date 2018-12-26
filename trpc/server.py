@@ -15,9 +15,13 @@ def funcargs(m):
     if args and args[0] == 'self': args.pop(0)
     return args
 
-def rpc(expose=True):
+def call_function(fn, route, request):
+    data = request.unwrap_arguments()
+    return fn(**data) if data else fn()
+
+def rpc():
     def _decorate(fn):
-        fn.__rpc__ = expose
+        fn.__trpc__ = call_function
         return fn
     return _decorate
 
@@ -83,7 +87,6 @@ class Endpoint:
         return ()
 
 class ServiceEndpoint(Endpoint):
-    __rpc__ = False
 
     def __init__(self, app, prefix, name, service):
         self.prefix = prefix
@@ -117,19 +120,17 @@ class ServiceEndpoint(Endpoint):
             s = self.service(self.app, route, request)
             attr = getattr(s, second)
 
-            if getattr(attr, '__rpc__', True):
-                if isinstance(attr, (types.FunctionType, types.MethodType)):
-                    if request.method == 'POST':
-                        data = request.unwrap_arguments()
-                        if not data: data = {}
-                        return attr(**data)
+            if isinstance(attr, (types.FunctionType, types.MethodType)):
+                handler = getattr(attr, '__trpc__', None)
+                if handler and request.method == 'POST':
+                    return handler(attr, route, request)
 
     def describe_trpc_endpoint(self, embed):
         links = []
         urls = {}
         embeds={}
         for key, m in self.service.__dict__.items():
-            if getattr(m, '__rpc__', not key.startswith('_')) and isinstance(m, types.FunctionType):
+            if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
                 links.append(key)
                 if embed:
                     embeds[key] = wire.Procedure(funcargs(m)).embed()
@@ -148,7 +149,6 @@ class Service:
 
 
 class NamespaceEndpoint(Endpoint):
-    __rpc__ = False
 
     def __init__(self, app, prefix, name, cls, entries):
         self.app = app
@@ -213,8 +213,6 @@ class Namespace:
         return NamespaceEndpoint(app, prefix, name, obj, entries=out)
 
 class FunctionEndpoint(Endpoint):
-    __rpc__ = False
-
     def __init__(self, app, prefix, name, fn):
         self.app = app
         self.name = name
@@ -242,9 +240,9 @@ class FunctionEndpoint(Endpoint):
             return self.describe_trpc_endpoint()
 
         elif request.method == 'POST':
-            data = request.unwrap_arguments()
-            if not data: data = {}
-            return self.fn(**data)
+            handler = getattr(attr, '__trpc__', None)
+            if handler:
+                return handler(attr, route, request)
         
         raise HTTPResponse('405 not allowed', [], [b'no'])
 

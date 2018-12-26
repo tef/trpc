@@ -15,12 +15,15 @@ class Example(Service):
     def hello(self, name):
         return "Hello, {}!".format(name)
 
+    @rpc()
     def hello_future(self):
         return Future(self.hello, dict(name="from the future"))
 
+    @rpc()
     def hello_cursor(self):
         return Cursor(list(range(0,5)), self.hello_next, dict(n=5))
 
+    @rpc()
     def hello_next(self, n):
         if n < 30:
             return Cursor(list(range(n, n+5)), self.hello_next, dict(n=n+5))

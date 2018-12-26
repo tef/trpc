@@ -25,11 +25,8 @@ class APIClient:
         return c(response, url, session)
 
     def _fetch(self, req):
-        if self._session:
-            url, response = self._session.request(req)
-            return self.wrap(response, url, self._session)
-        else:
-            return req
+        url, response = self._session.request(req)
+        return self.wrap(response, url, self._session)
 
 class Navigable(APIClient):
     def __getattr__(self, name):
@@ -49,6 +46,19 @@ class Service(Navigable):
 
 class Procedure(Callable):
     pass
+
+class ResultSet(APIClient):
+    def __iter__(self):
+        obj, url = self._response, self._url
+        while obj is not None:
+            for item in obj.values:
+                yield item
+
+            req = obj.request_next(url)
+            if req:
+                url, obj = self._session.request(req)
+            else:
+                obj = None
 
 class Collection(APIClient):
     def __getitem__(self, key):
@@ -104,6 +114,7 @@ class Session:
             return request.url, wire.decode_object(obj)
 
     def request(self, request):
+        """ Handle redirects, futures """
         while True:
             url, result = self.raw_request(request)
             if isinstance(result, wire.FutureResult):

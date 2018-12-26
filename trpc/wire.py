@@ -65,6 +65,7 @@ class Message:
     # class methd ctor from obj
     @classmethod
     def init_from_dict(cls, obj):
+        obj = dict(obj)
         kind = obj.pop('kind')
         apiVersion = obj.pop('apiVersion')
         metadata = obj.pop('metadata')
