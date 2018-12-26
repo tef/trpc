@@ -342,10 +342,10 @@ class CLI:
             print("Set TRPC_URL first", file=sys.stderr)
             sys.exit(-1)
 
-        url, obj = self.session.request(endpoint)
+        url, obj = self.session.request(endpoint, None)
 
         for p in path:
-            url, obj = self.session.request(obj.get(p, url))
+            url, obj = self.session.request(obj.get(p), url)
 
         if obj.kind == "Procedure" and mode == None:
             mode = "call"
@@ -369,17 +369,17 @@ class CLI:
             else:
                 arguments = dict(args)
 
-            req = obj.call(args, url)
-            url, obj = self.session.request(req) 
+            req = obj.call(args)
+            url, obj = self.session.request(req, url) 
 
         with PAGER() as (stdout, width):
             if obj.kind == 'ResultSet':
                 while obj != None:
                     for value in obj.values:
                         print(value, file=stdout)
-                    req = obj.request_next(url)
+                    req = obj.request_next()
                     if req:
-                        url, obj = self.session.request(req)
+                        url, obj = self.session.request(req, url)
                     else:
                         obj = None
 

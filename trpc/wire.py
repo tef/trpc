@@ -45,12 +45,38 @@ def wrap(out):
 def encode(out, accept):
     return wrap(out).encode(accept)
 
-class Request:
-    def __init__(self, verb, url, data, cached):
+class HTTPRequest:
+    def __init__(self, verb, url, content_type, data, cached):
         self.verb = verb
         self.url = url
         self.data = data
+        self.content_type = content_type
         self.cached = cached
+
+class Request:
+    def __init__(self, mode, path, args, cached):
+        self.mode = mode
+        self.path = path
+        self.args = args
+        self.cached = cached
+
+    def make_http(self, base_url):
+        verb = "GET" if self.mode == "get" else "POST"
+        if self.args is not None:
+            content_type, data = Arguments(self.args).encode()
+        else:
+            content_type, data = None, b""
+
+        url = urljoin(base_url, self.path)
+
+        return HTTPRequest(
+            verb = verb,
+            url = url,
+            data = data, 
+            content_type = content_type,
+            cached = self.cached
+        )
+
 
 class Message:
     Kinds = {}
@@ -115,18 +141,16 @@ class Message:
         return CONTENT_TYPE, data.encode('utf-8')
 
 class Navigable:
-    def get(self, name, base_url):
+    def get(self, name):
         links = self.links
         if name not in self.links:
             raise Exception(name)
 
         url = self.urls.get(name, name)
 
-        url = urljoin(base_url, url)
-
         cached = self.embeds.get(name)
 
-        return Request('GET', url, None, cached)
+        return Request('get', url, None, cached)
     
 
 class Result(Message):
@@ -142,9 +166,8 @@ class FutureResult(Message):
     fields = ()
     metadata = ('url', 'args', 'wait_seconds')
 
-    def make_request(self, base_url):
-        url = urljoin(base_url, self.url)
-        return Request('POST', url, self.args, None)
+    def make_request(self):
+        return Request('call', self.url, self.args, None)
 
 class Arguments(Message):
     apiVersion = 'v0'
@@ -156,8 +179,8 @@ class Procedure(Message):
     fields = ('arguments','command_line')
     metadata = ()
 
-    def call(self, arguments, base_url):
-        url = base_url
+    def call(self, arguments):
+        url = ''
 
         if self.arguments is not None:
             args = {}
@@ -171,7 +194,7 @@ class Procedure(Message):
             args = dict(arguments)
         if None in args: raise Exception('No')
 
-        return Request('POST', url, args, None)
+        return Request('call', url, args, None)
 
 class Service(Message, Navigable):
     apiVersion = 'v0'
@@ -187,10 +210,9 @@ class ResultSet(Message):
     apiVersion = 'v0'
     fields = ('values',)
     metadata = ('next','args',)
-    def request_next(self, base_url):
+    def request_next(self):
         if self.next:
-            url = urljoin(base_url, self.next)
-            return Request('POST', url, self.args, None)
+            return Request('call', self.url, self.args, None)
 
 class Collection(Message):
     apiVersion = 'v0'
