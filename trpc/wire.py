@@ -156,24 +156,22 @@ class Procedure(Message):
     fields = ('arguments','command_line')
     metadata = ()
 
-    def call(self, args, base_url):
+    def call(self, arguments, base_url):
         url = base_url
 
-        arguments = {}
-        form_args = list(self.arguments)
-        if isinstance(args, (list, tuple)):
-            while args:
-                name, value = args.pop(0)
-                if name is None:
-                    name = form_args.pop(0)
-                    arguments[name] = value
-                else:
-                    arguments[name] = value
-                    form_args.remove(name)
-        elif isinstance(args, dict):
-            arguments = args
+        if self.arguments is not None:
+            args = {}
+            for key in self.arguments:
+                args[key] = arguments.pop(key, None)
+            if arguments:
+                raise Exception("unkown args: {}".format(", ".join(arguments.keys())))
+        elif isinstance(arguments, dict):
+            args = arguments
+        else:
+            args = dict(arguments)
+        if None in args: raise Exception('No')
 
-        return Request('POST', url, arguments, None)
+        return Request('POST', url, args, None)
 
 class Service(Message, Navigable):
     apiVersion = 'v0'

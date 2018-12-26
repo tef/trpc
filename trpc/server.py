@@ -19,9 +19,18 @@ def call_function(fn, route, request):
     data = request.unwrap_arguments()
     return fn(**data) if data else fn()
 
-def rpc(command_line=None):
+def call_vararg_function(fn, route, request):
+    data = request.unwrap_arguments()
+    return fn(data) if data else fn()
+
+def rpc(varargs=None, command_line=None):
     def _decorate(fn):
-        fn.__trpc__ = call_function
+        if varargs:
+            fn.__trpc__ = call_vararg_function
+            fn.arguments = None
+        else:
+            fn.__trpc__ = call_function
+            fn.arguments = funcargs(fn)
         fn.command_line = command_line
         return fn
     return _decorate
@@ -105,6 +114,7 @@ class ServiceEndpoint(Endpoint):
     def route_for(self, obj):
         route = list(self.prefix)
         if obj == self.service or isinstance(obj, self.service):
+            route.append("")
             return route
 
         route.append(obj.__name__)
@@ -138,7 +148,7 @@ class ServiceEndpoint(Endpoint):
             if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
                 links.append(key)
                 if embed:
-                    embeds[key] = wire.Procedure(funcargs(m), m.command_line).embed()
+                    embeds[key] = wire.Procedure(m.arguments, m.command_line).embed()
 
         return wire.Service(name=self.name, links=links, embeds=embeds, urls=urls)
 
@@ -170,6 +180,7 @@ class NamespaceEndpoint(Endpoint):
     def route_for(self, obj):
         route = list(self.prefix)
         if obj == self.namespace:
+            route.append("")
             return route
 
         if obj in self.namespace:
@@ -224,7 +235,7 @@ class FunctionEndpoint(Endpoint):
         self.fn = fn
 
     def arguments(self):
-        return funcargs(self.fn)
+        return self.fn.arguments
 
     def endpoint_for(self):
         return (self.fn,)

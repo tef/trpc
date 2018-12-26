@@ -354,6 +354,21 @@ class CLI:
             if obj.command_line:
                 a = ArgumentParser(obj.command_line)
                 args = a.parse(args)
+            elif obj.arguments is not None:
+                arguments = {}
+                form_args = list(obj.arguments)
+                while args:
+                    name, value = args.pop(0)
+                    if name is None:
+                        name = form_args.pop(0)
+                        arguments[name] = value
+                    else:
+                        arguments[name] = value
+                        form_args.remove(name)
+                args = arguments
+            else:
+                arguments = dict(args)
+
             req = obj.call(args, url)
             url, obj = self.session.request(req) 
 

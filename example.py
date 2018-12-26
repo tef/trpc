@@ -32,6 +32,10 @@ class Example(Service):
         else:
             return Cursor(list(range(n, n+5)), None, None)
 
+    @rpc(varargs=True)
+    def echo(self, args):
+        return args
+
 namespace = {
     'Example': Example,
 }

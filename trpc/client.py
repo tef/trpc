@@ -35,7 +35,7 @@ class Navigable(APIClient):
 
 class Callable(APIClient):
     def __call__(self, **args):
-        req = self._response.call(list(args.items()), self._url)
+        req = self._response.call(args, self._url)
         return self._fetch(req)
 
 class Namespace(Navigable):
@@ -122,9 +122,10 @@ class Session:
             else:
                 return url, result
 
-def open(endpoint):
+def open(endpoint, schema=None):
     session = Session()
-    url, response = session.request(endpoint)
+    request = wire.Request("GET", endpoint, None, schema)
+    url, response = session.request(request)
     return APIClient.wrap(response, url, session)
 
     
