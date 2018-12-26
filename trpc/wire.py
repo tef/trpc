@@ -45,13 +45,26 @@ def wrap(out):
 def encode(out, accept):
     return wrap(out).encode(accept)
 
+class HTTPResponse(Exception):
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers or []
+        self.body = body
+
 class HTTPRequest:
-    def __init__(self, verb, url, content_type, data, cached):
-        self.verb = verb
+    def __init__(self, method, url, params, headers, content_type, data, cached):
+        self.method = method
         self.url = url
-        self.data = data
+        self.params = params
+        self.headers = headers
         self.content_type = content_type
+        self.data = data
         self.cached = cached
+
+    def unwrap_arguments(self):
+        data = decode_bytes(self.data, self.content_type)
+        if isinstance(data, Arguments):
+            return data.values
 
 class Request:
     def __init__(self, mode, path, args, cached):
@@ -61,7 +74,7 @@ class Request:
         self.cached = cached
 
     def make_http(self, base_url):
-        verb = "GET" if self.mode == "get" else "POST"
+        method = "GET" if self.mode == "get" else "POST"
         if self.args is not None:
             content_type, data = Arguments(self.args).encode()
         else:
@@ -70,9 +83,11 @@ class Request:
         url = urljoin(base_url, self.path)
 
         return HTTPRequest(
-            verb = verb,
+            method = method,
             url = url,
             data = data, 
+            params = {},
+            headers = {'Accept': CONTENT_TYPE},
             content_type = content_type,
             cached = self.cached
         )

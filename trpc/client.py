@@ -89,22 +89,24 @@ class Session:
     def __init__(self):
         pass
 
-    def raw_request(self, request, base_url=None):
+    def raw_request(self, request, base_url=None, cached=None):
+        headers = {'Accept': wire.CONTENT_TYPE}
         if isinstance(request, str):
-            request = wire.HTTPRequest("GET", request, None, None, None)
+            request = wire.HTTPRequest("GET", request, {}, headers, None, None, cached)
         elif isinstance(request, wire.Request):
             request = request.make_http(base_url)
 
         obj = request.cached
 
         if obj is None:
-            headers = {'Accept': wire.CONTENT_TYPE}
             if request.content_type:
                 headers['Content-Type'] = request.content_type
+            if request.headers:
+                headers.update(request.headers)
             urllib_request= urllib.request.Request(
                 url=request.url,
                 data=request.data,
-                method=request.verb,
+                method=request.method,
                 headers=headers
             )
 
@@ -125,8 +127,7 @@ class Session:
 
 def open(endpoint, schema=None):
     session = Session()
-    request = wire.HTTPRequest("GET", endpoint, None, None, schema)
-    url, response = session.request(request, None)
+    url, response = session.request(request, cached=schema)
     return APIClient.wrap(response, url, session)
 
     

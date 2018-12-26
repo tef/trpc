@@ -74,25 +74,6 @@ class Route:
     def advance(self):
         return Route(self.request, self.path, self.index+1)
 
-class HTTPResponse(Exception):
-    def __init__(self, status, headers, body):
-        self.status = status
-        self.headers = headers or []
-        self.body = body
-
-class HTTPRequest:
-    def __init__(self, method, path, params, headers, content_type, data):
-        self.method = method
-        self.path = path
-        self.params = params
-        self.headers = headers
-        self.content_type = content_type
-        self.data = data
-
-    def unwrap_arguments(self):
-        data = wire.decode_bytes(self.data, self.content_type)
-        if isinstance(data, wire.Arguments):
-            return data.values
 
 class Redirect:
     def __init__(self, target):
@@ -147,8 +128,8 @@ class ServiceEndpoint(Endpoint):
     def handle_trpc_request(self, route, request):
         second = route.head
         if not second:
-            if request.path[-1] != '/':
-                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
+            if request.url[-1] != '/':
+                raise wire.HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             return self.describe_trpc_endpoint(embed=True)
         elif not second.startswith('_'):
             s = self.service(self.app, route, request)
@@ -210,15 +191,15 @@ class NamespaceEndpoint(Endpoint):
         first = route.head
 
         if not first:
-            if request.path[-1] != '/':
-                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
+            if request.url[-1] != '/':
+                raise wire.HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
             
             return self.describe_trpc_endpoint(embed=True)
 
         elif not first.startswith('_'):
             item = self.namespace.get(first)
             if not item:
-                raise HTTPResponse('404 not found', (), [b'no'])
+                raise wire.HTTPResponse('404 not found', (), [b'no'])
             return item.handle_trpc_request(route.advance(), request)
 
     def describe_trpc_endpoint(self, embed):
@@ -279,7 +260,7 @@ class FunctionEndpoint(Endpoint):
             if handler:
                 return handler(attr, route, request)
         
-        raise HTTPResponse('405 not allowed', [], [b'no'])
+        raise wire.HTTPResponse('405 not allowed', [], [b'no'])
 
     def describe_trpc_endpoint(self, embed):
         return wire.Procedure(self.fn.arguments, self.fn.command_line)
@@ -343,7 +324,7 @@ class App:
         return self.root.describe_trpc_endpoint(embed=True)
 
     def handle_request(self, request):
-        route = Route(request, request.path.lstrip('/').split('/'), 0)
+        route = Route(request, request.url.lstrip('/').split('/'), 0)
         accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
         out = self.root.handle_trpc_request(route, request)
@@ -352,7 +333,7 @@ class App:
             url = "/{}".format("/".join(route))
             status = "303 TB"
             headers = [("Location", url)]
-            return HTTPResponse(status, headers, [])
+            return wire.HTTPResponse(status, headers, [])
 
         if isinstance(out, Future):
             route = self.route_for(out.target)
@@ -371,7 +352,7 @@ class App:
         content_type, data = out.encode(accept)
         status = "200 Adequate"
         headers = [("content-type", content_type)]
-        return HTTPResponse(status, headers, [data])
+        return wire.HTTPResponse(status, headers, [data])
 
     def __call__(self, environ, start_response):
         try:
@@ -391,10 +372,10 @@ class App:
             headers = {name[5:].lower():value for name, value in environ.items() if name.startswith('HTTP_')}
 
             try:
-                request = HTTPRequest(method, path, parameters, headers, content_type, data)
+                request = wire.HTTPRequest(method, path, parameters, headers, content_type, data, None)
                 response = self.handle_request(request)
 
-            except HTTPResponse as r:
+            except wire.HTTPResponse as r:
                 response = r
 
             start_response(response.status, response.headers)
