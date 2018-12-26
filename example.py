@@ -11,7 +11,9 @@ or run ./example.py Example:hello to run a server, run a command over http, then
 from trpc.server import App, Cursor, Future, Namespace, Service, rpc
 
 class Example(Service):
-    @rpc()
+    @rpc(
+        command_line = dict(name="string")
+    )
     def hello(self, name):
         return "Hello, {}!".format(name)
 

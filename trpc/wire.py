@@ -153,7 +153,7 @@ class Arguments(Message):
 
 class Procedure(Message):
     apiVersion = 'v0'
-    fields = ('arguments',)
+    fields = ('arguments','command_line')
     metadata = ()
 
     def call(self, args, base_url):
@@ -161,7 +161,7 @@ class Procedure(Message):
 
         arguments = {}
         form_args = list(self.arguments)
-        if form_args:
+        if isinstance(args, (list, tuple)):
             while args:
                 name, value = args.pop(0)
                 if name is None:
@@ -170,7 +170,7 @@ class Procedure(Message):
                 else:
                     arguments[name] = value
                     form_args.remove(name)
-        else:
+        elif isinstance(args, dict):
             arguments = args
 
         return Request('POST', url, arguments, None)

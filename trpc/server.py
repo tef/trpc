@@ -19,9 +19,10 @@ def call_function(fn, route, request):
     data = request.unwrap_arguments()
     return fn(**data) if data else fn()
 
-def rpc():
+def rpc(command_line=None):
     def _decorate(fn):
         fn.__trpc__ = call_function
+        fn.command_line = command_line
         return fn
     return _decorate
 
@@ -64,6 +65,10 @@ class HTTPRequest:
         data = wire.decode_bytes(self.data, self.content_type)
         if isinstance(data, wire.Arguments):
             return data.values
+
+class Redirect:
+    def __init__(self, target):
+        self.target = target
 
 class Future:
     def __init__(self, target, args):
@@ -133,7 +138,7 @@ class ServiceEndpoint(Endpoint):
             if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
                 links.append(key)
                 if embed:
-                    embeds[key] = wire.Procedure(funcargs(m)).embed()
+                    embeds[key] = wire.Procedure(funcargs(m), m.command_line).embed()
 
         return wire.Service(name=self.name, links=links, embeds=embeds, urls=urls)
 
@@ -247,7 +252,7 @@ class FunctionEndpoint(Endpoint):
         raise HTTPResponse('405 not allowed', [], [b'no'])
 
     def describe_trpc_endpoint(self, embed):
-        return wire.Procedure(self.arguments())
+        return wire.Procedure(self.arguments(), self.fn.command_line)
 
 class App:
     def __init__(self, name, root):
@@ -312,6 +317,13 @@ class App:
         accept = request.headers.get('accept', wire.CONTENT_TYPE).split(',')
         
         out = self.root.handle_trpc_request(route, request)
+        if isinstance(out, Redirect):
+            route = self.route_for(out.target)
+            url = "/{}".format("/".join(route))
+            status = "303 TB"
+            headers = [("Location", url)]
+            return HTTPResponse(status, headers, [])
+
         if isinstance(out, Future):
             route = self.route_for(out.target)
             url = "/{}".format("/".join(route))

@@ -351,6 +351,9 @@ class CLI:
             mode = "call"
     
         if mode == 'call':
+            if obj.command_line:
+                a = ArgumentParser(obj.command_line)
+                args = a.parse(args)
             req = obj.call(args, url)
             url, obj = self.session.request(req) 
 
