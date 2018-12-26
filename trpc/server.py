@@ -7,14 +7,13 @@ import inspect
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlencode, parse_qsl
 from functools import singledispatch
+from typing import List, Tuple, Dict, Any
 
 def type_to_kind(cls):
-    if cls == None:
-        return "any"
-    elif cls == str:
+    if cls == str:
         return "string"
     elif cls == list or cls == tuple:
-        return "list"
+        return ["list"]
     elif cls == float:
         return "float"
     elif cls == int:
@@ -24,13 +23,22 @@ def type_to_kind(cls):
     elif cls == bytes or cls == bytearray:
         return "bytestring"
     elif cls == set:
-        return "set"
+        return ["set"]
     elif cls == datetime:
         return "datetime"
     elif cls == timedelta:
         return "duration"
     elif cls == dict:
-        return "object"
+        return ["object"]
+    elif cls == Any:
+        return "any"
+    elif cls == List or cls == Tuple:
+        return ["list"]
+    elif cls == List[str]:
+        return ["list","str"]
+    elif cls == List[int]:
+        return ["list","integer"]
+    return "json"
 
 from . import wire, client, cli, wsgi
 
@@ -40,14 +48,8 @@ def funcargs(m):
     for name, p in signature.parameters.items():
         if name == 'self': continue
         if name.startswith('_') and p.default == p.empty: raise Exception('no')
-        args[name] = type_to_kind(p.annotation)
-
-    print(args)
-
-    args = signature.parameters
-    args = [a for a in args if not a.startswith('_')]
-    if args and args[0] == 'self': args.pop(0)
-    return {n:"any" for n in args}
+        args[name] = None if p.annotation == p.empty else type_to_kind(p.annotation)
+    return args
 
 def call_function(fn, route, request):
     data = request.unwrap_arguments()
@@ -58,10 +60,16 @@ def call_raw_function(fn, route, request):
     return fn(data) if data else fn()
 
 def argspec_for_kind(kind):
-    if kind == "any":
-        return "json_or_scalar"
-    print(kind)
-    raise Exception(kind)
+    if kind is None: return "json"
+    if kind == "any": return "json_or_scalar"
+    if kind[0] == "list":
+        if kind[1] == "string": return "str*"
+        if kind[1] == "integer": return "int*"
+        if kind[1] == "bool": return "*"
+        if kind[1] == "any": return "json_or_scalar*"
+        return "json*"
+
+    return "json"
 
 def rpc(raw_args=None, command_line=None):
     def _decorate(fn):

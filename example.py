@@ -8,14 +8,18 @@ or run ./example.py --schema to print the schema
 or run ./example.py Example:hello to run a server, run a command over http, then stop the server
 """
 
+from typing import List, Dict, Any
+
 from trpc.server import App, Cursor, Future, Namespace, Service, rpc
 
 class Example(Service):
-    @rpc(
-        command_line = dict(name="string")
-    )
+    @rpc()
     def hello(self, name: str) -> str:
         return "Hello, {}!".format(name)
+
+    @rpc()
+    def sum(self, num: List[int]):
+        return sum(num)
 
     @rpc()
     def hello_future(self):
