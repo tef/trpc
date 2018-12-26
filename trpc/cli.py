@@ -314,10 +314,10 @@ def parse_argument(kind, value):
 class CLI:
     MODES = set((
         'call', 'get', 'list',
-        'set', 'update', 'create'
+        'set', 'update', 'create',
         'delete',   
-        'watch', 'exec'
-        'help', 'error', 'usage', 'complete', 'version'
+        'watch', 'exec',
+        'help', 'error', 'usage', 'complete', 'version',
     ))
 
     def __init__(self, session):
@@ -341,9 +341,6 @@ class CLI:
         mode, path, args = self.parse(argv, environ)
         self.run(mode, path, args, environ)
 
-    def complete(self, prefix):
-        pass
-
     def run(self, mode, path, args, environ):
         endpoint = environ.get("TRPC_URL", "")
 
@@ -355,6 +352,7 @@ class CLI:
 
         for p in path:
             url, obj = self.session.request(obj.get(p), url)
+
 
         if obj.kind == "Procedure" and mode == None:
             mode = "call"
@@ -426,6 +424,54 @@ class CLI:
                 name, value = None, arg
                 args.append((name, value))
         return mode, path, args
+
+    def complete(self, prefix):
+        endpoint = os.environ.get("TRPC_URL", "")
+
+        if not endpoint:
+            return ()
+
+        if len(prefix) < 2:
+            return ()
+
+        prefix.pop(0)
+        first = prefix[0]
+
+        out = []
+        if first in self.MODES:
+            prefix.pop(0)
+        elif len(prefix) == 1:
+            for m in self.MODES:
+                if m.startswith(first):
+                    out.append('{} '.format(m))
+
+        url, obj = self.session.request(endpoint, None)
+    
+        route = []
+        filter = None
+        if not prefix:
+            filter = ''
+        else:
+            route = prefix.pop(0)
+            route = route.split(':') if route else ()
+            if not prefix:
+                if route:
+                    filter = route.pop()
+                else:
+                    filter = ''
+
+        for p in route:
+            url, obj = self.session.request(obj.get(p), url)
+        
+        if filter is not None:
+            for link in obj.routes():
+                if link == filter:
+                    out.append('{} '.format(link))
+                elif link.startswith(filter):
+                    out.append('{}:'.format(link))
+            return out
+
+        return out
 
 
     

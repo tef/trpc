@@ -140,6 +140,9 @@ class Message:
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
 
+    def routes(self):
+        return ()
+
 class Navigable:
     def get(self, name):
         links = self.links
@@ -152,6 +155,8 @@ class Navigable:
 
         return Request('get', url, None, cached)
     
+    def routes(self):
+        return self.links
 
 class Result(Message):
     apiVersion = 'v0'
@@ -176,7 +181,7 @@ class Arguments(Message):
 
 class Procedure(Message):
     apiVersion = 'v0'
-    fields = ('arguments','command_line', 'types')
+    fields = ('arguments','command_line')
     metadata = ()
 
     def call(self, arguments):
@@ -196,12 +201,12 @@ class Procedure(Message):
 
         return Request('call', url, args, None)
 
-class Service(Message, Navigable):
+class Service(Navigable, Message):
     apiVersion = 'v0'
     fields = ('name',)
     metadata = ('links', 'embeds', 'urls')
 
-class Namespace(Message, Navigable):
+class Namespace(Navigable, Message):
     apiVersion = 'v0'
     fields = ('name', )
     metadata = ('links', 'embeds', 'urls')
