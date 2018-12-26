@@ -222,7 +222,7 @@ class ArgumentParser:
 
         return out
 
-    def complete(self, args, app_parser):
+    def complete(self, args, app_parser=None):
         arg = args[-1]
 
         if arg.startswith('--') and '=' in arg:
@@ -321,6 +321,7 @@ class CLI:
 
     def __init__(self, session):
         self.session = session
+        self.parser = ArgumentParser({})
 
     def main(self, argv, environ):
         if 'COMP_LINE' in environ and 'COMP_POINT' in environ:
@@ -419,9 +420,11 @@ class CLI:
                     name, value = arg[2:].split('=', 1)
                 else:
                     name, value = arg[2:], None
-                args.append((name, value))
             else:
                 name, value = None, arg
+            if name in self.parser.argspec:
+                pass
+            else:
                 args.append((name, value))
         return mode, path, args
 
@@ -436,10 +439,11 @@ class CLI:
 
         prefix.pop(0)
         first = prefix[0]
+        mode = None
 
         out = []
         if first in self.MODES:
-            prefix.pop(0)
+            mode = prefix.pop(0)
         elif len(prefix) == 1:
             for m in self.MODES:
                 if m.startswith(first):
@@ -477,6 +481,13 @@ class CLI:
                     out.append('{}'.format(link))
             return out
 
+        if obj.kind == "Procedure" and mode == None:
+            mode = "call"
+    
+        if mode == 'call':
+            if obj.command_line:
+                a = ArgumentParser(obj.command_line)
+                out.extend(a.complete(prefix), self.parser)
         return out
 
 
