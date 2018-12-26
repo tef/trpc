@@ -275,7 +275,6 @@ class ArgumentParser:
         return out
 
 def parse_argument(kind, value):
-    print(value)
     if kind in (None, "str", "string"):
         return value
     elif kind in ("path", "file", "dir"):
@@ -461,14 +460,20 @@ class CLI:
                     filter = ''
 
         for p in route:
+            if p not in obj.routes():
+                return out
             url, obj = self.session.request(obj.get(p), url)
         
         if filter is not None:
             for link in obj.routes():
                 if link == filter:
-                    out.append('{} '.format(link))
+                    url, obj = self.session.request(obj.get(filter), url)
+                    if obj.routes():
+                        out.append('{}:'.format(link))
+                    else:
+                        out.append('{} '.format(link))
                 elif link.startswith(filter):
-                    out.append('{}:'.format(link))
+                    out.append('{}'.format(link))
             return out
 
         return out
