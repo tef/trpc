@@ -95,8 +95,8 @@ class Request:
 
 class Message:
     Kinds = {}
-    fields = () # top level field names
-    metadata = () # metadata field names
+    Fields = () # top level field names
+    Metadata = () # metadata field names
     apiVersion = 'v0'
 
     # subclass hook
@@ -113,10 +113,10 @@ class Message:
         Kind = cls.Kinds.get(kind)
         if not Kind: return
         self = Kind.__new__(Kind)
-        for name in Kind.fields:
+        for name in Kind.Fields:
             value = obj.get(name)
             setattr(self, name, value)
-        for name in Kind.metadata:
+        for name in Kind.Metadata:
             value = metadata.get(name)
             setattr(self, name, value)
         return self
@@ -124,8 +124,8 @@ class Message:
 
     def __init__(self, *args, **kwargs):
         names = list()
-        names.extend(self.fields)
-        names.extend(self.metadata)
+        names.extend(self.Fields)
+        names.extend(self.Metadata)
         for value in args:
             name = names.pop(0)
             setattr(self, name, value)
@@ -138,12 +138,12 @@ class Message:
         return self.__class__.__name__
 
     def format(self):
-        fields = {k:getattr(self, k) for k in self.fields}
+        fields = {k:getattr(self, k) for k in self.Fields}
         return "{}: {}".format(self.kind, fields)
 
     def embed(self):
-        fields = {k:getattr(self, k) for k in self.fields}
-        metadata = {k:getattr(self, k) for k in self.metadata}
+        fields = {k:getattr(self, k) for k in self.Fields}
+        metadata = {k:getattr(self, k) for k in self.Metadata}
         return dict(
             kind=self.kind,
             apiVersion=self.apiVersion,
@@ -158,8 +158,9 @@ class Message:
     def routes(self):
         return ()
 
+
 class Navigable:
-    def get(self, name):
+    def walk(self, name):
         links = self.links
         if name not in self.links:
             raise Exception(name)
@@ -175,29 +176,29 @@ class Navigable:
 
 class Result(Message):
     apiVersion = 'v0'
-    fields = ('value',)
-    metadata = ()
+    Fields = ('value',)
+    Metadata = ()
 
     def format(self):
         return str(self.value)
 
 class FutureResult(Message):
     apiVersion = 'v0'
-    fields = ()
-    metadata = ('url', 'args', 'wait_seconds')
+    Fields = ()
+    Metadata = ('url', 'args', 'wait_seconds')
 
     def make_request(self):
         return Request('call', self.url, self.args, None)
 
 class Arguments(Message):
     apiVersion = 'v0'
-    fields = ('values',)
-    metadata = ()
+    Fields = ('values',)
+    Metadata = ()
 
 class Procedure(Message):
     apiVersion = 'v0'
-    fields = ('arguments','command_line')
-    metadata = ()
+    Fields = ('arguments','command_line')
+    Metadata = ()
 
     def call(self, arguments):
         url = ''
@@ -218,36 +219,46 @@ class Procedure(Message):
 
 class Service(Navigable, Message):
     apiVersion = 'v0'
-    fields = ('name',)
-    metadata = ('links', 'embeds', 'urls')
+    Fields = ('name',)
+    Metadata = ('links', 'embeds', 'urls')
 
 class Namespace(Navigable, Message):
     apiVersion = 'v0'
-    fields = ('name', )
-    metadata = ('links', 'embeds', 'urls')
+    Fields = ('name', )
+    Metadata = ('links', 'embeds', 'urls')
 
 class ResultSet(Message):
     apiVersion = 'v0'
-    fields = ('values',)
-    metadata = ('next','args',)
+    Fields = ('values',)
+    Metadata = ('next','args',)
     def request_next(self):
         if self.next:
             return Request('call', self.next, self.args, None)
 
 class Collection(Message):
     apiVersion = 'v0'
-    fields = ('name', )
-    metadata = ('key','create', 'indexes', 'links','embeds', 'urls')
+    Fields = ('name', )
+    Metadata = ('key','create', 'indexes', 'links', 'embeds', 'urls')
 
+    def get(self, name):
+        links = self.links
+        if name not in self.links:
+            raise Exception(name)
+
+        url = self.urls.get(name, name)
+
+        cached = self.embeds.get(name)
+
+        return Request('get', url, None, cached)
 class Entry(Message):
     apiVersion = 'v0'
-    fields = ('name', )
-    metadata = ('collection', 'links', 'embeds', 'urls')
+    Fields = ('name', )
+    Metadata = ('collection', 'links', 'embeds', 'urls')
 
 class EntrySet(Message):
     apiVersion = 'v0'
-    fields = ('rows', 'columns' )
-    metadata = ('collection',  'links', 'embeds', 'urls')
+    Fields = ('rows', 'columns' )
+    Metadata = ('collection',  'links', 'embeds', 'urls')
 
 # Stream - one way
 

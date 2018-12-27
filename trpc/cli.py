@@ -354,7 +354,7 @@ class CLI:
         url, obj = self.session.request(endpoint, None)
 
         for p in path:
-            url, obj = self.session.request(obj.get(p), url)
+            url, obj = self.session.request(obj.walk(p), url)
 
 
         if obj.kind == "Procedure" and mode == None:
@@ -470,12 +470,12 @@ class CLI:
         for p in route:
             if p not in obj.routes():
                 return out
-            url, obj = self.session.request(obj.get(p), url)
+            url, obj = self.session.request(obj.walk(p), url)
         
         if filter is not None:
             for link in obj.routes():
                 if link == filter:
-                    url, obj = self.session.request(obj.get(filter), url)
+                    url, obj = self.session.request(obj.walk(filter), url)
                     if obj.routes():
                         out.append('{}:'.format(link))
                     else:
@@ -490,7 +490,7 @@ class CLI:
         if mode == 'call':
             if obj.command_line:
                 a = ArgumentParser(obj.command_line)
-                out.extend(a.complete(prefix), self.parser)
+                out.extend(a.complete(prefix, self.parser))
         return out
 
 

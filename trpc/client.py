@@ -30,7 +30,7 @@ class APIClient:
 
 class Navigable(APIClient):
     def __getattr__(self, name):
-        req = self._response.get(name)
+        req = self._response.walk(name)
         return self._fetch(req)
 
 class Callable(APIClient):

@@ -145,15 +145,11 @@ class Endpoint:
         return ()
 
 class ServiceEndpoint(Endpoint):
-
     def __init__(self, app, prefix, name, service):
         self.prefix = prefix
         self.app = app
         self.name = name
         self.service = service
-
-    def endpoint_for(self):
-        return (self.service,)
 
     def route_for(self, obj):
         route = list(self.prefix)
@@ -286,7 +282,6 @@ class FunctionEndpoint(Endpoint):
 
     def route_for(self, obj):
         route = list(self.prefix)
-        route.append(self.name)
         if obj == self.service or isinstance(obj, self.service):
             return route
 
@@ -308,6 +303,111 @@ class FunctionEndpoint(Endpoint):
 
     def describe_trpc_endpoint(self, embed):
         return wire.Procedure(self.fn.arguments, self.fn.command_line)
+
+class CollectionEndpoint(Endpoint):
+    def __init__(self, app, prefix, name,  model):
+        self.prefix = prefix
+        self.app = app
+        self.name = name
+        self.model = model
+
+    def route_for(self):
+        route = list(self.prefix)
+        if obj == self.model:
+            route.append("")
+            return route
+
+    def endpoint_for(self):
+        return (self.model,)
+
+    def handle_trpc_request(self, route, request):
+        method = route.head
+
+        if not method:
+            if request.path[-1] != '/':
+                raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
+            return self.describe_collection()
+
+        route = route.advance()
+        key = route.head
+        route = route.advance()
+        obj_method = route.head
+        route = route.advance()
+
+        if method.startswith('_') or obj_method.startswith('_'):
+            return
+
+        print(method, key, obj_method)
+
+        if method == 'id':
+            if key and obj_method:
+                data = request.unwrap_arguments()
+                return self.call_entry(key, method, data)
+            elif key:
+                return self.describe_entry(key)
+        elif method == 'list':
+            selector = params.get('where')
+            cursor = params.get('state')
+            return self.get_list(selector, cursor)
+        elif method == 'create':
+            data = request.unwrap_arguments()
+            return self.create_entry(data)
+        elif method == 'set':
+            data = request.unwrap_arguments()
+            if key:
+                return self.set_key(key, data)
+            else:
+                selector = params.get('where')
+                return self.set_list(selector, data)
+        elif method == 'update':
+            data = request.unwrap_arguments()
+            if key:
+                return self.update_key(key, data)
+            else:
+                selector = params.get('where')
+                return self.update_list(selector, data)
+        elif method == 'delete':
+            if key:
+                return self.delete(key)
+            else:
+                selector = params.get('where')
+                return self.delete_list(selector)
+        elif method == 'watch':
+            if key:
+                return self.watch_key(key, data)
+            else:
+                selector = params.get('where')
+                return self.watch_list(selector)
+
+    def describe_trpc_endpoint(self, embed=True):
+        return self.describe_collection()
+
+    def describe_collection(self): 
+        pass
+    def describe_entry(self, key): 
+        pass
+    def create_entry(self, data): 
+        pass
+    def update_entry(self, key, data): 
+        pass
+    def set_entry(self, key, data): 
+        pass
+    def delete_entry(self, key): 
+        pass
+    def watch_entry(self, key): 
+        pass
+    def call_entry(self, key, method, args): 
+        pass
+    def get_list(self, selector, cursor=None): 
+        pass
+    def delete_list(self, selector): 
+        pass
+    def set_list(self, selector, value): 
+        pass
+    def update_list(self, selector, value): 
+        pass
+    def watch_list(self, selector, cursor=None): 
+        pass
 
 class App:
     def __init__(self, name, root):
