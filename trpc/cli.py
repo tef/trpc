@@ -384,6 +384,33 @@ class CLI:
 
             req = obj.call(arguments)
             url, obj = self.session.request(req, url) 
+        elif mode == 'get':
+            # allow --pk= ...
+            _, key = args[0]
+            req = obj.get_entry(key)
+            url, obj = self.session.request(req, url) 
+        elif mode == 'create':
+            # check creare args
+            req = obj.create_entry(dict(args))
+            url, obj = self.session.request(req, url) 
+        elif mode == 'delete':
+            _, key = args[0]
+            req = obj.delete_entry(key)
+            url, obj = self.session.request(req, url) 
+        elif mode == 'update':
+            pass
+        elif mode == 'set':
+            pass
+        elif mode == 'list':
+            pass
+        elif mode == 'watch':
+            pass
+        elif mode == 'exec':
+            pass
+        elif mode == 'list':
+            pass
+        elif mode == 'help':
+            pass
 
         with PAGER() as (stdout, width):
             if obj.kind == 'ResultSet':

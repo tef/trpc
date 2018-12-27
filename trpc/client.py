@@ -60,7 +60,7 @@ class ResultSet(APIClient):
             else:
                 obj = None
 
-class Collection(APIClient):
+class Model(APIClient):
     def __getitem__(self, key):
         return self.get(key)
 

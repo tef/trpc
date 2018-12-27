@@ -244,8 +244,8 @@ class Model(Message):
         url = 'id/{}'.format(key)
         return Request('get', url, None, None)
 
-    def create_entty(self, args):
-        url = 'new'
+    def create_entry(self, args):
+        url = 'create'
         return Request('create', url, args, None)
 
     def delete_entry(self, key):
