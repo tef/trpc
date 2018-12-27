@@ -402,7 +402,8 @@ class CLI:
         elif mode == 'set':
             pass
         elif mode == 'list':
-            pass
+            req = obj.get_where([])
+            url, obj = self.session.request(req, url) 
         elif mode == 'watch':
             pass
         elif mode == 'exec':

@@ -254,19 +254,18 @@ class Model(Message):
 
     def set_entry(self, key, args):
         url = 'set/{}'.format(key)
-        return Request('set', url, args)
+        return Request('set', url, args, None)
 
     def update_entry(self, key, args):
         url = 'update/{}'.format(key)
-        return Request('update', url, args)
+        return Request('update', url, args, None)
 
     def watch_entry(self, key):
         pass
 
-    def get_where(self, selector):
-        url = 'list'.format(key)
-        return Request('update', url, args)
-        pass
+    def get_where(self, selector, limit=None):
+        url = 'list'
+        return Request('list', url, {}, None)
 
     def delete_where(self, selector):
         pass
@@ -276,12 +275,12 @@ class Model(Message):
 
 class Entry(Message):
     apiVersion = 'v0'
-    Fields = ('values', )
+    Fields = ('attributes', )
     Metadata = ('collection', 'links', 'embeds', 'urls')
 
 class EntrySet(Message):
     apiVersion = 'v0'
-    Fields = ('rows', 'columns' )
+    Fields = ('items', )
     Metadata = ('collection',  'links', 'embeds', 'urls')
 
 # Stream - one way

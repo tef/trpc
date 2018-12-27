@@ -338,15 +338,13 @@ class ModelEndpoint(Endpoint):
             return
 
         if method == 'id':
+            data = request.unwrap_arguments()
             if key and obj_method:
-                data = request.unwrap_arguments()
                 return self.call_entry(key, method, data)
             elif key:
                 return self.get_entry(key)
         elif method == 'list':
-            selector = params.get('where')
-            state = params.get('state')
-            return self.get_where(selector, state)
+            return self.get_where(selector=None, state=None, limit=None)
         elif method == 'create':
             data = request.unwrap_arguments()
             return self.create_entry(data)
