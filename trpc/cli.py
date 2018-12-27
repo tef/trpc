@@ -337,9 +337,11 @@ class CLI:
             for o in self.complete(environ, prefix):
                 print(o)
             sys.exit(0)
+        else:
+            self.start(argv, environ)
 
-        mode, path, args = self.parse(argv, environ)
-
+    def start(self, argv, environ):
+        ctx, mode, path, args = self.parse(argv, environ)
         endpoint = environ.get("TRPC_URL", "")
 
         if not endpoint:
@@ -423,10 +425,11 @@ class CLI:
             else:
                 name, value = None, arg
             if name in self.parser.argspec:
-                pass
+                app_args.append((name, value))
             else:
                 args.append((name, value))
-        return mode, path, args
+        ctx = self.parser.parse(app_args, named_args=True)
+        return ctx, mode, path, args
 
     def complete(self, environ, prefix):
         endpoint = environ.get("TRPC_URL", "")

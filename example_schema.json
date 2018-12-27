@@ -3,49 +3,88 @@
     "apiVersion": "v0",
     "metadata": {
         "links": [
-            "Example",
-            "nested"
+            "Example"
         ],
-        "forms": {
-            "nice": [
-                "person"
-            ]
-        },
         "embeds": {
             "Example": {
                 "kind": "Service",
                 "apiVersion": "v0",
                 "metadata": {
-                    "links": [],
-                    "forms": {
-                        "hello": [],
-                        "echo": [
-                            "args"
-                        ]
+                    "links": [
+                        "hello",
+                        "sum",
+                        "hello_future",
+                        "hello_cursor",
+                        "hello_next",
+                        "echo"
+                    ],
+                    "embeds": {
+                        "hello": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": {
+                                "name": "string"
+                            },
+                            "command_line": {
+                                "name": "string"
+                            }
+                        },
+                        "sum": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": {
+                                "num": [
+                                    "list",
+                                    "integer"
+                                ]
+                            },
+                            "command_line": {
+                                "num": "int*"
+                            }
+                        },
+                        "hello_future": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": {},
+                            "command_line": {}
+                        },
+                        "hello_cursor": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": {},
+                            "command_line": {}
+                        },
+                        "hello_next": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": {
+                                "n": null
+                            },
+                            "command_line": {
+                                "n": "json"
+                            }
+                        },
+                        "echo": {
+                            "kind": "Procedure",
+                            "apiVersion": "v0",
+                            "metadata": {},
+                            "arguments": null,
+                            "command_line": null
+                        }
                     },
-                    "embeds": {},
                     "urls": {}
                 },
                 "name": "Example"
-            },
-            "nested": {
-                "kind": "Namespace",
-                "apiVersion": "v0",
-                "metadata": {
-                    "links": [],
-                    "forms": {
-                        "report": []
-                    },
-                    "embeds": {},
-                    "urls": {}
-                },
-                "name": "nested"
             }
         },
         "urls": {
-            "Example": "Example/",
-            "nested": "nested/"
+            "Example": "Example/"
         }
     },
-    "name": "example"
+    "name": "app"
 }
