@@ -11,6 +11,8 @@ import json
 
 from datetime import datetime, timezone
 
+from . import wire
+
 # Errors
 
 class Bug(SyntaxError): pass # Bad Code
@@ -316,7 +318,7 @@ class CLI:
         'set', 'update', 'create',
         'delete',   
         'watch', 'exec',
-        'help', 
+        'help', 'routes',
     ))
 
     def __init__(self, session):
@@ -359,6 +361,8 @@ class CLI:
 
         if obj.kind == "Procedure" and mode == None:
             mode = "call"
+        if mode == None and obj.get_routes():
+            mode = "routes"
     
         if mode == 'call':
             if obj.command_line:
@@ -379,7 +383,6 @@ class CLI:
                 arguments = {}
                 for k,v in args:
                     if k is None: raise Exception('no')
-                    print(k,v)
                     arguments[k] = parse_argument('json_or_scalar', v)
 
             req = obj.call(arguments)
@@ -412,6 +415,8 @@ class CLI:
             pass
         elif mode == 'help':
             pass
+        elif mode == 'routes':
+            obj = wire.ResultSet(obj.get_routes())
 
         with PAGER() as (stdout, width):
             if obj.kind == 'ResultSet':
