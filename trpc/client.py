@@ -103,12 +103,15 @@ class Session:
         obj = request.cached
 
         if obj is None:
+            url = request.url
             if request.content_type:
                 headers['Content-Type'] = request.content_type
             if request.headers:
                 headers.update(request.headers)
+            if request.params:
+                url = '{}?{}'.format(url, urlencode(request.params))
             urllib_request= urllib.request.Request(
-                url=request.url,
+                url=url,
                 data=request.data,
                 method=request.method,
                 headers=headers

@@ -66,27 +66,37 @@ class HTTPRequest:
         if isinstance(data, Arguments):
             return data.values
 
+    def unwrap_param(self, name):
+        p = self.params.get(name)
+        if p and p[0]:
+            return json.loads(p[0])
+
 class Request:
-    def __init__(self, mode, path, args, cached):
+    def __init__(self, mode, path, params, args, cached):
         self.mode = mode
         self.path = path
+        self.params = params
         self.args = args
         self.cached = cached
 
     def make_http(self, base_url):
-        method = "GET" if self.mode in ("get","walk") else "POST"
+        method = "GET" if self.mode in ("get","walk", "list") else "POST"
         if self.args is not None:
             content_type, data = Arguments(self.args).encode()
         else:
             content_type, data = None, b""
 
         url = urljoin(base_url, self.path)
+        if self.params:
+            params = {k:json.dumps(v) for k,v in self.params.items()}
+        else:
+            params = {}
 
         return HTTPRequest(
             method = method,
             url = url,
             data = data, 
-            params = {},
+            params = params,
             headers = {'Accept': CONTENT_TYPE},
             content_type = content_type,
             cached = self.cached
@@ -168,7 +178,7 @@ class Navigable:
 
         cached = self.embeds.get(name)
 
-        return Request('walk', url, None, cached)
+        return Request('walk', url, {}, None, cached)
     
     def get_routes(self):
         return self.routes
@@ -187,7 +197,7 @@ class FutureResult(Message):
     Metadata = ('url', 'args', 'wait_seconds')
 
     def make_request(self):
-        return Request('call', self.url, self.args, None)
+        return Request('call', self.url, {}, self.args, None)
 
 class Arguments(Message):
     apiVersion = 'v0'
@@ -214,7 +224,7 @@ class Procedure(Message):
             args = dict(arguments)
         if None in args: raise Exception('No')
 
-        return Request('call', url, args, None)
+        return Request('call', url, {}, args, None)
 
 class Service(Navigable, Message):
     apiVersion = 'v0'
@@ -232,7 +242,7 @@ class ResultSet(Message):
     Metadata = ('next','args',)
     def request_next(self):
         if self.next:
-            return Request('call', self.next, self.args, None)
+            return Request('call', self.next, {}, self.args, None)
 
 class Model(Message):
     apiVersion = 'v0'
@@ -241,30 +251,30 @@ class Model(Message):
 
     def get_entry(self, key):
         url = 'id/{}'.format(key)
-        return Request('get', url, None, None)
+        return Request('get', url, {}, None, None)
 
     def create_entry(self, args):
         url = 'create'
-        return Request('create', url, args, None)
+        return Request('create', url, {}, args, None)
 
     def delete_entry(self, key):
         url = 'delete/{}'.format(key)
-        return Request('delete', url, None)
+        return Request('delete', url, {}, None, None)
 
     def set_entry(self, key, args):
         url = 'set/{}'.format(key)
-        return Request('set', url, args, None)
+        return Request('set', url, {}, args, None)
 
     def update_entry(self, key, args):
         url = 'update/{}'.format(key)
-        return Request('update', url, args, None)
+        return Request('update', url, {}, args, None)
 
     def watch_entry(self, key):
         pass
 
     def get_where(self, selector, limit=None):
-        url = 'list'
-        return Request('list', url, {}, None)
+        query = dict(selector=selector, limit=limit)
+        return Request('list', 'list', query, None, None)
 
     def delete_where(self, selector):
         pass
@@ -280,9 +290,13 @@ class Entry(Message):
 class EntrySet(Message):
     apiVersion = 'v0'
     Fields = ('items', )
-    Metadata = ('collection',  'routes', 'embeds', 'urls')
+    Metadata = ('next', 'selector', 'state')
+    def request_next(self, limit=None):
+        if self.next is not None:
+            query = dict(selector=self.selector, state=self.state, limit=limit)
+            return Request('list', self.next, query, None, None)
 
-# Stream - one way
+# Stream - one way out
 
 # Channel - two way
 

@@ -5,7 +5,7 @@ import os
 import inspect
 
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin, urlencode, parse_qsl
+from urllib.parse import urljoin, urlencode, parse_qs
 from functools import singledispatch
 from typing import List, Tuple, Dict, Any
 
@@ -343,32 +343,33 @@ class ModelEndpoint(Endpoint):
                 return self.call_entry(key, method, data)
             elif key:
                 return self.get_entry(key)
-        elif method == 'list':
-            print(request.params)
-            selector = request.params
-            return self.get_where(selector=None, state=None, limit=None)
         elif method == 'create':
             data = request.unwrap_arguments()
             return self.create_entry(data)
         elif method == 'set':
-            data = request.unwrap_arguments()
             if key:
+                data = request.unwrap_arguments()
                 return self.set_entry(key, data)
         elif method == 'update':
-            data = request.unwrap_arguments()
             if key:
+                data = request.unwrap_arguments()
                 return self.update_entry(key, data)
+        elif method == 'list':
+            selector = request.unwrap_param('selector')
+            state = request.unwrap_param('state')
+            limit = request.unwrap_param('limit')
+            return self.get_where(selector, state, limit)
         elif method == 'delete':
             if key:
                 return self.delete(key)
             else:
-                selector = params.get('where')
+                selector = request.unwrap_param('where')
                 return self.delete_where(selector)
         elif method == 'watch':
             if key:
                 return self.watch_entry(key, data)
             else:
-                selector = params.get('where')
+                selector = request.unwrap_param('where')
                 return self.watch_list(selector)
 
     def describe_trpc_endpoint(self, embed=True):
@@ -494,7 +495,7 @@ class App:
             method = environ.get('REQUEST_METHOD', '')
             prefix = environ.get('SCRIPT_NAME', '')
             path = environ.get('PATH_INFO', '')
-            parameters = parse_qsl(environ.get('QUERY_STRING', ''))
+            parameters = parse_qs(environ.get('QUERY_STRING', ''))
 
             content_length = environ.get('CONTENT_LENGTH','')
             content_type = environ.get('CONTENT_TYPE','')
@@ -559,7 +560,7 @@ class App:
         if not serve:
             schema = self.schema().embed()
             environ = dict(os.environ)
-            environ['TRPC_URL'] = wire.Request('get', '/', None, schema)
+            environ['TRPC_URL'] = wire.Request('get', '/', {}, None, schema)
 
             session = AppSession(self)
             return cli.CLI(session).main(argv, environ)
@@ -573,7 +574,7 @@ class App:
             schema = None
 
             environ = dict(os.environ)
-            environ['TRPC_URL'] = wire.Request('get', url, None, schema)
+            environ['TRPC_URL'] = wire.Request('get', url, {}, None, schema)
            
             session = client.Session()
             if argv:
