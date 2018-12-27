@@ -27,7 +27,7 @@ class PeeweeEndpoint(ModelEndpoint):
             key=self.key,
             create=self.create_fields,
             indexes=self.indexes,
-            links={}, urls={}, embeds={},
+            routes={}, urls={}, embeds={},
         )
     def describe_entry(self, obj):
         attrs = self.extract_attributes(obj)

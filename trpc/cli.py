@@ -316,7 +316,7 @@ class CLI:
         'set', 'update', 'create',
         'delete',   
         'watch', 'exec',
-        'help', 'error', 'usage', 'complete', 'version',
+        'help', 
     ))
 
     def __init__(self, session):
@@ -496,15 +496,15 @@ class CLI:
                     filter = ''
 
         for p in route:
-            if p not in obj.routes():
+            if p not in obj.get_routes():
                 return out
             url, obj = self.session.request(obj.walk(p), url)
         
         if filter is not None:
-            for link in obj.routes():
+            for link in obj.get_routes():
                 if link == filter:
                     url, obj = self.session.request(obj.walk(filter), url)
-                    if obj.routes():
+                    if obj.get_routes():
                         out.append('{}:'.format(link))
                     else:
                         out.append('{} '.format(link))

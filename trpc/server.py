@@ -181,16 +181,16 @@ class ServiceEndpoint(Endpoint):
                     return handler(attr, route, request)
 
     def describe_trpc_endpoint(self, embed):
-        links = []
+        routes = []
         urls = {}
         embeds={}
         for key, m in self.service.__dict__.items():
             if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
-                links.append(key)
+                routes.append(key)
                 if embed:
                     embeds[key] = wire.Procedure(m.arguments, m.command_line).embed()
 
-        return wire.Service(name=self.name, links=links, embeds=embeds, urls=urls)
+        return wire.Service(name=self.name, routes=routes, embeds=embeds, urls=urls)
 
 
 class Service:
@@ -243,13 +243,13 @@ class NamespaceEndpoint(Endpoint):
             return item.handle_trpc_request(route.advance(), request)
 
     def describe_trpc_endpoint(self, embed):
-        links = []
+        routes = []
         forms = {}
         embeds = {}
         urls = {}
         for key, value in self.namespace.items():
             if isinstance(value, Endpoint):
-                links.append(key)
+                routes.append(key)
                 if not isinstance(value, FunctionEndpoint):
                     urls[key] = "{}/".format(key)
                 if embed:
@@ -257,7 +257,7 @@ class NamespaceEndpoint(Endpoint):
                     if service:
                         embeds[key] = service.embed()
 
-        return wire.Namespace(name=self.name, links=links, embeds=embeds, urls=urls)
+        return wire.Namespace(name=self.name, routes=routes, embeds=embeds, urls=urls)
 
 class Namespace:
     def __init__(self):
@@ -295,9 +295,9 @@ class FunctionEndpoint(Endpoint):
             return self.describe_trpc_endpoint()
 
         elif request.method == 'POST':
-            handler = getattr(attr, '__trpc__', None)
+            handler = getattr(self.fn, '__trpc__', None)
             if handler:
-                return handler(attr, route, request)
+                return handler(self.fn, route, request)
         
         raise wire.HTTPResponse('405 not allowed', [], [b'no'])
 
@@ -344,6 +344,8 @@ class ModelEndpoint(Endpoint):
             elif key:
                 return self.get_entry(key)
         elif method == 'list':
+            print(request.params)
+            selector = request.params
             return self.get_where(selector=None, state=None, limit=None)
         elif method == 'create':
             data = request.unwrap_arguments()
@@ -374,7 +376,6 @@ class ModelEndpoint(Endpoint):
 
     def describe_model(self): 
         pass
-
     def get_entry(self, key): 
         pass
     def create_entry(self, data): 

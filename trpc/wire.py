@@ -8,7 +8,7 @@ apiVersion is a string, without any ordering or semantic information defined.
 
 metadata may contain
     'id', 'url' ,'collection'
-    'links', 'methods', 'embeds'
+    'routes', 'methods', 'embeds'
     'selector', 
 
 other top level fields include
@@ -155,14 +155,13 @@ class Message:
         data = json.dumps(self.embed())
         return CONTENT_TYPE, data.encode('utf-8')
 
-    def routes(self):
+    def get_routes(self):
         return ()
 
 
 class Navigable:
     def walk(self, name):
-        links = self.links
-        if name not in self.links:
+        if name not in self.routes:
             raise Exception(name)
 
         url = self.urls.get(name, name)
@@ -171,8 +170,8 @@ class Navigable:
 
         return Request('walk', url, None, cached)
     
-    def routes(self):
-        return self.links
+    def get_routes(self):
+        return self.routes
 
 class Result(Message):
     apiVersion = 'v0'
@@ -220,12 +219,12 @@ class Procedure(Message):
 class Service(Navigable, Message):
     apiVersion = 'v0'
     Fields = ('name',)
-    Metadata = ('links', 'embeds', 'urls')
+    Metadata = ('routes', 'embeds', 'urls')
 
 class Namespace(Navigable, Message):
     apiVersion = 'v0'
     Fields = ('name', )
-    Metadata = ('links', 'embeds', 'urls')
+    Metadata = ('routes', 'embeds', 'urls')
 
 class ResultSet(Message):
     apiVersion = 'v0'
@@ -238,7 +237,7 @@ class ResultSet(Message):
 class Model(Message):
     apiVersion = 'v0'
     Fields = ('name', )
-    Metadata = ('key','create', 'indexes', 'links', 'embeds', 'urls')
+    Metadata = ('key','create', 'indexes', 'routes', 'embeds', 'urls')
 
     def get_entry(self, key):
         url = 'id/{}'.format(key)
@@ -276,12 +275,12 @@ class Model(Message):
 class Entry(Message):
     apiVersion = 'v0'
     Fields = ('attributes', )
-    Metadata = ('collection', 'links', 'embeds', 'urls')
+    Metadata = ('collection', 'routes', 'embeds', 'urls')
 
 class EntrySet(Message):
     apiVersion = 'v0'
     Fields = ('items', )
-    Metadata = ('collection',  'links', 'embeds', 'urls')
+    Metadata = ('collection',  'routes', 'embeds', 'urls')
 
 # Stream - one way
 
