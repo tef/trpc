@@ -74,7 +74,7 @@ class Request:
         self.cached = cached
 
     def make_http(self, base_url):
-        method = "GET" if self.mode == "get" else "POST"
+        method = "GET" if self.mode in ("get","walk") else "POST"
         if self.args is not None:
             content_type, data = Arguments(self.args).encode()
         else:
@@ -169,7 +169,7 @@ class Navigable:
 
         cached = self.embeds.get(name)
 
-        return Request('get', url, None, cached)
+        return Request('walk', url, None, cached)
     
     def routes(self):
         return self.links
@@ -235,24 +235,48 @@ class ResultSet(Message):
         if self.next:
             return Request('call', self.next, self.args, None)
 
-class Collection(Message):
+class Model(Message):
     apiVersion = 'v0'
     Fields = ('name', )
     Metadata = ('key','create', 'indexes', 'links', 'embeds', 'urls')
 
-    def get(self, name):
-        links = self.links
-        if name not in self.links:
-            raise Exception(name)
+    def get_entry(self, key):
+        url = 'id/{}'.format(key)
+        return Request('get', url, None, None)
 
-        url = self.urls.get(name, name)
+    def create_entty(self, args):
+        url = 'new'
+        return Request('create', url, args, None)
 
-        cached = self.embeds.get(name)
+    def delete_entry(self, key):
+        url = 'delete/{}'.format(key)
+        return Request('delete', url, None)
 
-        return Request('get', url, None, cached)
+    def set_entry(self, key, args):
+        url = 'set/{}'.format(key)
+        return Request('set', url, args)
+
+    def update_entry(self, key, args):
+        url = 'update/{}'.format(key)
+        return Request('update', url, args)
+
+    def watch_entry(self, key):
+        pass
+
+    def get_where(self, selector):
+        url = 'list'.format(key)
+        return Request('update', url, args)
+        pass
+
+    def delete_where(self, selector):
+        pass
+
+    def watch_where(self, selector):
+        pass
+
 class Entry(Message):
     apiVersion = 'v0'
-    Fields = ('name', )
+    Fields = ('values', )
     Metadata = ('collection', 'links', 'embeds', 'urls')
 
 class EntrySet(Message):

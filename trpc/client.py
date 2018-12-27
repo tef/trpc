@@ -65,16 +65,20 @@ class Collection(APIClient):
         return self.get(key)
 
     def get(self, key):
-        pass
+        req = self._response.get_entry(key)
+        return self._fetch(req)
 
     def create(self, **args):
-        pass
+        req = self._response.create_entry(args)
+        return self._fetch(req)
 
     def delete(self, key):
-        pass
+        req = self._response.delete_entry(key)
+        return self._fetch(req)
 
-    def list(self, **args):
-        pass
+    def all(self):
+        req = self._response.get_where(None)
+        return self._fetch(req)
 
     def next(self):
         return self.list()

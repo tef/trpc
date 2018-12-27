@@ -304,7 +304,7 @@ class FunctionEndpoint(Endpoint):
     def describe_trpc_endpoint(self, embed):
         return wire.Procedure(self.fn.arguments, self.fn.command_line)
 
-class CollectionEndpoint(Endpoint):
+class ModelEndpoint(Endpoint):
     def __init__(self, app, prefix, name,  model):
         self.prefix = prefix
         self.app = app
@@ -326,7 +326,7 @@ class CollectionEndpoint(Endpoint):
         if not method:
             if request.path[-1] != '/':
                 raise HTTPResponse('303 put a / on the end', [('Location', route.prefix+'/')], [])
-            return self.describe_collection()
+            return self.describe_trpc_endpoint()
 
         route = route.advance()
         key = route.head
@@ -337,54 +337,47 @@ class CollectionEndpoint(Endpoint):
         if method.startswith('_') or obj_method.startswith('_'):
             return
 
-        print(method, key, obj_method)
-
         if method == 'id':
             if key and obj_method:
                 data = request.unwrap_arguments()
                 return self.call_entry(key, method, data)
             elif key:
-                return self.describe_entry(key)
+                return self.get_entry(key)
         elif method == 'list':
             selector = params.get('where')
-            cursor = params.get('state')
-            return self.get_list(selector, cursor)
+            state = params.get('state')
+            return self.get_where(selector, state)
         elif method == 'create':
             data = request.unwrap_arguments()
             return self.create_entry(data)
         elif method == 'set':
             data = request.unwrap_arguments()
             if key:
-                return self.set_key(key, data)
-            else:
-                selector = params.get('where')
-                return self.set_list(selector, data)
+                return self.set_entry(key, data)
         elif method == 'update':
             data = request.unwrap_arguments()
             if key:
-                return self.update_key(key, data)
-            else:
-                selector = params.get('where')
-                return self.update_list(selector, data)
+                return self.update_entry(key, data)
         elif method == 'delete':
             if key:
                 return self.delete(key)
             else:
                 selector = params.get('where')
-                return self.delete_list(selector)
+                return self.delete_where(selector)
         elif method == 'watch':
             if key:
-                return self.watch_key(key, data)
+                return self.watch_entry(key, data)
             else:
                 selector = params.get('where')
                 return self.watch_list(selector)
 
     def describe_trpc_endpoint(self, embed=True):
-        return self.describe_collection()
+        return self.describe_model()
 
-    def describe_collection(self): 
+    def describe_model(self): 
         pass
-    def describe_entry(self, key): 
+
+    def get_entry(self, key): 
         pass
     def create_entry(self, data): 
         pass
