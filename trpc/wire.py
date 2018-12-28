@@ -192,8 +192,11 @@ class Enumerable:
 class Invokable:
     def call(self, args):
         pass
+class Format:
+    def format(self):
+        return self
 
-class Result(Message):
+class Result(Format, Message):
     apiVersion = 'v0'
     Fields = ('value',)
     Metadata = ()
@@ -295,17 +298,21 @@ class Model(Message):
     def watch_where(self, selector):
         pass
 
-class Entry(Message):
+class Entry(Format, Message):
     apiVersion = 'v0'
     Fields = ('attributes', )
     Metadata = ('collection', 'routes', 'embeds', 'urls')
 
-class EntrySet(Message):
+    def format(self):
+        return self.attributes
+
+class EntrySet(Enumerable, Message):
     apiVersion = 'v0'
     Fields = ('items', )
     Metadata = ('next', 'selector', 'state')
     def enumerate(self):
-        return self.items # todo
+        return [decode_object(i) for i in self.items]
+        # todo - shared metadata
     def request_next(self, limit=None):
         if self.next is not None:
             query = dict(selector=self.selector, state=self.state, limit=limit)

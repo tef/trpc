@@ -427,7 +427,7 @@ class CLI:
             if isinstance(obj, wire.Enumerable):
                 while obj != None:
                     for value in obj.enumerate():
-                        print(value, file=stdout)
+                        print(value.format(), file=stdout)
                     req = obj.request_next()
                     if req:
                         url, obj = self.session.request(req, url)
