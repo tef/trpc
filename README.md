@@ -1,8 +1,14 @@
-# trpc: rpc can be better than this
+# trpc
 
-Being better than other rpc frameworks is a bold claim, so forgive me for taking some of your time to demonstrate it.
+trpc is a toolkit for writing and interacting with client-server APIs.
 
-This is a proof of concept library, so forgive me again for implementing before documenting. Every example works.
+trpc is also a command line tool: you don't need to implement a client, or a server, to use it.
+
+trpc is also a framework: you can mix and match rpc and crud, break up large or long responses without breaing clients, and y can even generate the schema from the code, too!
+
+trpc is also restful rpc framework, but that's not important and no-one cares
+
+This is a proof of concept library, so forgive me again for implementing before documenting. Every example works, except where noted.
 
 # You don't have to write server code
 
@@ -33,7 +39,7 @@ Use:
 ```
 $ trpc list TableName
 $ trpc create Table --field=1 --otherfield=3
-$ trpc call stored_proc --arg=1
+$ trpc call stored_proc --arg=1 # (this bit does not work yet)
 ```
 
 Tab complete works, too!
@@ -257,8 +263,6 @@ Again, this is transparent to the client and the CLI. Both make multiple request
 
 # How does it work?
 
-Although `trpc` uses JSON and HTTP underneath by default, but doesn't have to. Although `trpc` is written in python, there is nothing python specific about the `trpc` protocol or encodings.
-
 The command line tool either has to know in advance how every api works, or, learn the schema somehow when interacting with the service. `trpc` chooses the latter approach. This, along with other decisions allows a `trpc` service to change behaviours without breaking clients.
 
 You can add a new service, or a new method, without forcing the client libraries to change. The client knows about different types of api responses too, including ones requiring polling. A busy or hot method can be replaced with one that forces clients to poll for an answer, and control the polling interval too, without changing or updating clients, or breaking them too!
@@ -267,3 +271,9 @@ Although other frameworks use a schema to generate code, `trpc` works the other 
 
 The schema is a json file, and describes the namespaces, services, and methods exposed. There's room for types, too. You can generate server templates, or client stubs from schemas, but you don't need to. `trpc` works without it. If you want to check a service matches up, add a test to your CI to dump the schema & compare it.
 
+Although `trpc` uses JSON and HTTP underneath by default, but doesn't have to. Although `trpc` is written in python, there is nothing python specific about the `trpc` protocol or encodings.
+
+# Readme TODO
+
+- fill out examples
+- explain rest/state transfer/uniform representation, uniform address, and self descriptive messaging
