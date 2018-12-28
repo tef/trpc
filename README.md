@@ -1,15 +1,12 @@
-# trpc: yet another rpc toolkit
+# trpc: rpc can be better than this
 
-Please note: This readme is optimistic and describes a finished product. Parts are missing.
+Being better than other rpc frameworks is a bold claim, so forgive me for taking some of your time to demonstrate it.
 
-`trpc` is an rpc framework that works differently from most others
+This is a proof of concept library, so forgive me again for implementing before documenting. Every example works.
 
-1. you can generate the schema from the code
-2. but the client doesn't need the schema
-3. there's a reusable command line tool
-4. and a reusable server, too!
+# You don't have to write server code
 
-With `trpc`, you can turn any database into an api server.
+If you have a database lying around, you can turn it into a trpc service from the command line
 
 ```
 $ export DATABASE_URL=sqlite:///example.db
@@ -19,36 +16,50 @@ http://127.0.0.1:1729/
 Press ^C to exit
 ```
 
-Then you can access it from the command line, using only the URL!
+# You don't have to write client code
+
+`trpc` comes with a command line tool for interacting with any trpc server:
+
+Setup:
 
 ```
 $ export TRPC_URL=http://127.0.0.1:1729/
 $ alias trpc='python3 -m trpc'
-$ python3 trpc list TableName
-...
-
-$ python3 -m trpc create Person --name='bob'
-...
+$ complete -o nospace -C trpc trpc
 ```
 
-Or you can use the API directly:
+Use:
 
 ```
-import trpc
-
-api = trpc.open('http://localhost:1729')
-
-for row in api.Person.list():
-    print(row.name)
+$ trpc list TableName
+$ trpc create Table --field=1 --otherfield=3
+$ trpc call stored_proc --arg=1
 ```
 
-It also comes with a Python 3 library for writing your own services:
+Tab complete works, too!
+
+# You can write client code if you'd like to
 
 ```
 import trpc
 
-def demo():
-    return "Hello, World!"
+db = trpc.open("http://127.0.0.1:1729")
+
+db.Table.create(key="1", value="v")
+
+for row in db.Table.list():
+    print(row.key, row.value)
+```
+
+# You can write custom servers, too
+
+```
+from trpc.server import App, Service, rpc
+
+class Demo(Service):
+    @rpc()
+    def hello(self, name: str):
+        return "Hello, {}!".format(name)
 
 namespace = {'demo': demo}
 
@@ -57,36 +68,41 @@ app = trpc.App('example', namespace) # WSGI App
 app.automain(__name__) # If run as a script, run a HTTP server
 ```
 
-Run it with `python3 example.py --port=1729`, and then you can access it from the command line:
+Running this with `$ ./example.py --serve --port=1729` gives you an HTTP server
+
+# You don't need to write a new cli tool
+
+The cli tool only needs the URL:
 
 ```
-$ trpc demo
-Hello, World!
+$ export TRPC_URL=...
+$ trpc demo:hello --name="Sam"
+Hello, Sam!
 ```
 
-Or you can call the API directly:
+# Or generate new client stubs
+
+The python client library only needs the URL, too.
 
 ```
-api = trpc.open('http://localhost:1729')
-print(api.demo())
+import trpc
+
+example = trpc.open("http://127.0.0.1:1729")
+
+out = example.demo.hello("Sam")
+
+print(out)
 ```
 
-You don't need to know the names of the commands, either
+# You don't need to write a schema, either
+
+The server can make one for you:
 
 ```
-$ trpc demo
-usage: trpc demo --name=<...>
+$ ./example_server.py --schema
 ```
 
-There's even tab completion (or will be!)
-
-Although `trpc` uses JSON and HTTP underneath by default, but doesn't have to. Although `trpc` is written in python, there is nothing python specific about the `trpc` protocol or encodings.
-
-# Where's the schema?
-
-Although other frameworks use a schema to generate code, `trpc` works the other way around.
-
-You can run `$ ./example.py --schema` to print the schema, or via code too:
+Or you can make one yourself
 
 ```
 app = App('name', root)
@@ -94,108 +110,160 @@ schema = app.schema()
 json.dumps(schema.dump())
 ```
 
-The schema is a json file, and describes the namespaces, services, and methods exposed. There's room for types, too. You can generate server templates, or client stubs from schemas, but you don't need to. `trpc` works without it.
+# Did I mention tab complete still works?
 
-If you want to check a service matches up, add a test to your CI to dump the schema & compare it.
+```
+$ trpc demo:<TAB>
+hello
+```
 
-# Why, in all that is good, would you do that?
+# You can mix and match CRUD and Procedural
+
+```
+import uuid
+
+from trpc.service import Service, App, rpc
+from trpc.db import PeeweeEndpoint
+
+from peewee import SqliteDatabase, Model, UUIDField, CharField
+
+db = SqliteDatabase('people.db')
+
+class Person(Model):
+    make_trpc_endpoint = PeeweeEndpoint
+    class Meta: database = db
+
+    uuid = UUIDField(primary_key=True, default=uuid.uuid4)
+    name = CharField(index=True)
+    job = CharField(index=True)
+
+
+class Demo(Service):
+    @rpc()
+    def hello(self, name: str):
+        return "Hello, {}!".format(name)
+
+
+db.connect()
+db.create_tables([Person], safe=True)
+
+namespace = {'Person': Person, 'demo':Demo}
+
+app = App('db', namespace)
+
+app.automain(__name__)
+```
+
+```
+$ trpc call demo:hello --name=Sam
+$ trpc create Person --name=Sam
+```
+
+# You can break up long running RPC calls without changing the client
+
+Consider a service:
+
+```
+class Resizer(Service):
+    @rpc()
+    def resize(self, src, dest, size):
+        data = store.load(src)
+        imagetool.load(data)
+        imagetool.resize(size)
+        data = imagetool.save()
+        store.save(dest, data)
+```
+
+At some point the operation might take so long that the HTTP call starts timing out.
+
+The traditional fix is to break the operation into two parts:
+
+```
+class Resizer(Service):
+    @rpc()
+    def start_resize(self, src, dest, size):
+        ...
+        return resize_id
+    @rpc()
+    def resize_complete(self, resize_id):
+        ...
+```
+
+With trpc, you can return a Future
+
+```
+from trpc.server import App, Service, Future, rpc
+
+class Resizer(Service):
+    @rpc()
+    def resize(self, src, dest, size):
+        ...
+        return Future(self.resize_complete, {"resize_id":resize_id})
+    @rpc()
+    def resize_complete(self, resize_id):
+        ...
+        if ready:
+            ...
+        else:
+            return Future(self.resize_complete, {"resize_id":resize_id})
+```
+
+To the client, or the CLI tool, `Resizer.resize()` works the same as before:
+
+```
+$ trpc call Resizer:resize --src=... --dest=... --size=...
+```
+
+```
+api = trpc.open(...)
+if api.Resizer.resize(....):
+    ...
+```
+
+# You can break up large responses too!
+
+From:
+
+```
+class Example(Service):
+    @rpc()
+    def make_list(self):
+        return list(range(0,30))
+```
+
+To:
+
+```
+from trpc.server import App, Cursor, Future, Namespace, Service, rpc
+
+class Example(Service):
+    @rpc()
+    def make_list(self):
+        values = list(range(0,5))
+        args = {"n":5}
+        return Cursor(values, self.next_list, args)
+
+    @rpc()
+    def next_list(self, n):
+        values = list(range(n,n+5))
+        if n < 30:
+            args = {"n":5}
+            return Cursor(values, self.next_list, args)
+        else:
+            return Cursor(values, None, None)
+```
+
+Again, this is transparent to the client and the CLI. Both make multiple requests behind the scenes.
+
+# How does it work?
+
+Although `trpc` uses JSON and HTTP underneath by default, but doesn't have to. Although `trpc` is written in python, there is nothing python specific about the `trpc` protocol or encodings.
 
 The command line tool either has to know in advance how every api works, or, learn the schema somehow when interacting with the service. `trpc` chooses the latter approach. This, along with other decisions allows a `trpc` service to change behaviours without breaking clients.
 
 You can add a new service, or a new method, without forcing the client libraries to change. The client knows about different types of api responses too, including ones requiring polling. A busy or hot method can be replaced with one that forces clients to poll for an answer, and control the polling interval too, without changing or updating clients, or breaking them too!
 
-Take an example service:
+Although other frameworks use a schema to generate code, `trpc` works the other way around.
 
-```
-class Example(trpc.Service):
-    def hello(self, name):
-        return "Hello, {}!".format(name)
+The schema is a json file, and describes the namespaces, services, and methods exposed. There's room for types, too. You can generate server templates, or client stubs from schemas, but you don't need to. `trpc` works without it. If you want to check a service matches up, add a test to your CI to dump the schema & compare it.
 
-namespace = {
-    ...
-    'nested': {
-        'Example':'example'
-    },
-    ...
-}
-```
-
-You can can call it from the command line:
-
-```
-$ trpc call nested:Example:hello --name=sam
-Hello, sam!
-```
-
-Or, call it directly:
-
-```
-api = trpc.open("http://localhost:1729/")
-
-print(api.Example.hello("Sam"))
-
-```
-
-- _XXX_
-    - Similarly, API can tell client to poll for answer later
-    - Handled in client code, command line tool
-    - Can Change API to use it without changing clients
-
-# A model example
-
-- _XXX_ 
-    - Peewee handler to map a database table
-
-```
-$ trpc list Model --where-field=..
-$ trpc get Model key
-$ trpc delete Model key
-```
-
-# Pagination 
-
-- _XXX_
-    - Servers can expose Cursors
-    - State stored client side, but generically, invisibly
-    - Break a long response into smaller API requests 
-
-```
-for row in endpoint.Model.all():
-    print(row)
-```
-
-```
-$ trpc list Model 
-```
-
-# Sessions
-
-- _XXX_ 
-    - Services with client side state attached
-    - Useful for sharding an API
-
-# Redirects
-
-- _XXX_ 
- - Client follows URLs given by server, can redirect to other APIs
-
-# asyncio
-
-- _XXX_
-    - alternate client api
-
-# Alternate transports, encodings, clients, services
-
-- _XXX_
-    - decorating methods to indicate type
-    - grpc decorator
-    - ssh+trpc://
-
-# How it works?
-
-- _XXX_
-    - it's restful, lol
-
-# Authentication
-
-Yes, that is nice, and would be nice to have. 

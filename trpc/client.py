@@ -76,7 +76,7 @@ class Model(APIClient):
         req = self._response.delete_entry(key)
         return self._fetch(req)
 
-    def all(self):
+    def list(self):
         req = self._response.get_where(None)
         return self._fetch(req)
 

@@ -496,6 +496,7 @@ class App:
             prefix = environ.get('SCRIPT_NAME', '')
             path = environ.get('PATH_INFO', '')
             parameters = parse_qs(environ.get('QUERY_STRING', ''))
+            parameters = {k:v[0] for k,v in parameters.items()}
 
             content_length = environ.get('CONTENT_LENGTH','')
             content_type = environ.get('CONTENT_TYPE','')
@@ -543,6 +544,7 @@ class App:
             for arg in sys.argv[1:]:
                 if arg.startswith('--port='):
                     port = int(arg[7:])
+                    serve = True
                 elif arg == "--serve":
                     serve = True
                 else:
@@ -556,6 +558,10 @@ class App:
                 return
         else:
             argv = sys.argv[1:]
+
+        if not serve:
+            if not argv:
+                serve = True
 
         if not serve:
             schema = self.schema().embed()

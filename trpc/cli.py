@@ -12,11 +12,9 @@ import json
 from datetime import datetime, timezone
 
 from . import wire
+from .errors import Error, Bug
 
 # Errors
-
-class Bug(SyntaxError): pass # Bad Code
-class Error(Exception): pass # Bad Input
 
 # Wrappers for shell programs: less, $EDITOR, and git
 
@@ -318,7 +316,7 @@ class CLI:
         'set', 'update', 'create',
         'delete',   
         'watch', 'exec',
-        'help', 'routes',
+        'help', 'routes','modes',
     ))
 
     def __init__(self, session):
@@ -417,11 +415,18 @@ class CLI:
             pass
         elif mode == 'routes':
             obj = wire.ResultSet(obj.get_routes())
+        elif mode == 'modes':
+            modes = ['help']
+            if isinstance(obj, wire.Navigable):
+                modes.append('routes')
+            if isinstance(obj, wire.Invokable):
+                modes.append('call')
+            obj = wire.ResultSet(modes)
 
         with PAGER() as (stdout, width):
-            if obj.kind == 'ResultSet':
+            if isinstance(obj, wire.Enumerable):
                 while obj != None:
-                    for value in obj.values:
+                    for value in obj.enumerate():
                         print(value, file=stdout)
                     req = obj.request_next()
                     if req:

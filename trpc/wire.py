@@ -68,8 +68,8 @@ class HTTPRequest:
 
     def unwrap_param(self, name):
         p = self.params.get(name)
-        if p and p[0]:
-            return json.loads(p[0])
+        if p:
+            return json.loads(p)
 
 class Request:
     def __init__(self, mode, path, params, args, cached):
@@ -108,6 +108,7 @@ class Message:
     Fields = () # top level field names
     Metadata = () # metadata field names
     apiVersion = 'v0'
+    enumerable = False
 
     # subclass hook
     def __init_subclass__(cls):
@@ -183,6 +184,15 @@ class Navigable:
     def get_routes(self):
         return self.routes
 
+class Enumerable:
+    def request_next(self, limit=None):
+        pass
+    def enumerate(self):
+        pass
+class Invokable:
+    def call(self, args):
+        pass
+
 class Result(Message):
     apiVersion = 'v0'
     Fields = ('value',)
@@ -204,7 +214,7 @@ class Arguments(Message):
     Fields = ('values',)
     Metadata = ()
 
-class Procedure(Message):
+class Procedure(Invokable, Message):
     apiVersion = 'v0'
     Fields = ('arguments','command_line')
     Metadata = ()
@@ -236,13 +246,16 @@ class Namespace(Navigable, Message):
     Fields = ('name', )
     Metadata = ('routes', 'embeds', 'urls')
 
-class ResultSet(Message):
+class ResultSet(Enumerable, Message):
     apiVersion = 'v0'
     Fields = ('values',)
     Metadata = ('next','args',)
-    def request_next(self):
+    def enumerate(self):
+        return self.values
+    def request_next(self, limit=None):
         if self.next:
-            return Request('call', self.next, {}, self.args, None)
+            query = dict(limit=limit)
+            return Request('call', self.next, query, self.args, None)
 
 class Model(Message):
     apiVersion = 'v0'
@@ -291,6 +304,8 @@ class EntrySet(Message):
     apiVersion = 'v0'
     Fields = ('items', )
     Metadata = ('next', 'selector', 'state')
+    def enumerate(self):
+        return self.items # todo
     def request_next(self, limit=None):
         if self.next is not None:
             query = dict(selector=self.selector, state=self.state, limit=limit)
