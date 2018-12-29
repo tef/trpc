@@ -38,6 +38,19 @@ class Callable(APIClient):
         req = self._response.call(args)
         return self._fetch(req)
 
+class ResultSet(APIClient):
+    def __iter__(self):
+        obj, url = self._response, self._url
+        while obj is not None:
+            for item in obj.enumerate():
+                yield item.value
+
+            req = obj.request_next()
+            if req:
+                url, obj = self._session.request(req, url)
+            else:
+                obj = None
+
 class Namespace(Navigable):
     pass
 
@@ -47,18 +60,7 @@ class Service(Navigable):
 class Procedure(Callable):
     pass
 
-class ResultSet(APIClient):
-    def __iter__(self):
-        obj, url = self._response, self._url
-        while obj is not None:
-            for item in obj.values:
-                yield item
 
-            req = obj.request_next()
-            if req:
-                url, obj = self._session.request(req, url)
-            else:
-                obj = None
 
 class Model(APIClient):
     def __getitem__(self, key):
@@ -88,6 +90,24 @@ class Model(APIClient):
 
     def not_where(self, **args):
         pass
+
+class EntrySet(APIClient):
+    def __iter__(self):
+        obj, url = self._response, self._url
+        while obj is not None:
+            for item in obj.enumerate():
+                yield self.wrap(item, url, self._session)
+
+            req = obj.request_next()
+            if req:
+                url, obj = self._session.request(req, url)
+            else:
+                obj = None
+    pass
+
+class Entry(APIClient): 
+    def __getattr__(self, name):
+        return self._response.attributes[name]
 
 class Session:
     def __init__(self):
@@ -132,9 +152,9 @@ class Session:
             else:
                 return url, result
 
-def open(endpoint, schema=None):
+def open(request, schema=None):
     session = Session()
-    url, response = session.request(request, cached=schema)
+    url, response = session.request(request)
     return APIClient.wrap(response, url, session)
 
     

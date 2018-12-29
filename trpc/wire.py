@@ -254,7 +254,7 @@ class ResultSet(Enumerable, Message):
     Fields = ('values',)
     Metadata = ('next','args',)
     def enumerate(self):
-        return self.values
+        return [Result(v) for v in self.values]
     def request_next(self, limit=None):
         if self.next:
             query = dict(limit=limit)
