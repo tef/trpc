@@ -181,16 +181,12 @@ class ServiceEndpoint(Endpoint):
                     return handler(attr, route, request)
 
     def describe_trpc_endpoint(self, embed):
-        routes = []
-        urls = {}
-        embeds={}
+        methods = {}
         for key, m in self.service.__dict__.items():
             if not key.startswith('_') and hasattr(m, '__trpc__') and isinstance(m, types.FunctionType):
-                routes.append(key)
-                if embed:
-                    embeds[key] = wire.Procedure(m.arguments, m.command_line).embed()
+                methods[key] = wire.Procedure(m.arguments, m.command_line).embed()
 
-        return wire.Service(name=self.name, routes=routes, embeds=embeds, urls=urls)
+        return wire.Service(name=self.name, methods=methods)
 
 
 class Service:
@@ -243,8 +239,8 @@ class NamespaceEndpoint(Endpoint):
             return item.handle_trpc_request(route.advance(), request)
 
     def describe_trpc_endpoint(self, embed):
-        routes = []
         forms = {}
+        routes=[]
         embeds = {}
         urls = {}
         for key, value in self.namespace.items():

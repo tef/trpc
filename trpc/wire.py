@@ -171,18 +171,11 @@ class Message:
 
 
 class Navigable:
-    def walk(self, name):
-        if name not in self.routes:
-            raise Exception(name)
-
-        url = self.urls.get(name, name)
-
-        cached = self.embeds.get(name)
-
-        return Request('walk', url, {}, None, cached)
-    
     def get_routes(self):
-        return self.routes
+        pass
+
+    def walk(self, route):
+        pass
 
 class Enumerable:
     def request_next(self, limit=None):
@@ -241,13 +234,36 @@ class Procedure(Invokable, Message):
 
 class Service(Navigable, Message):
     apiVersion = 'v0'
-    Fields = ('name',)
-    Metadata = ('routes', 'embeds', 'urls')
+    Fields = ('name','methods')
+    Metadata = ()
+
+    def walk(self, name):
+        if name not in self.methods:
+            raise Exception(name)
+
+        return Request('walk', name, {}, None, self.methods[name])
+    
+    def get_routes(self):
+        return list(self.methods.keys())
 
 class Namespace(Navigable, Message):
     apiVersion = 'v0'
-    Fields = ('name', )
+    Fields = ('name',)
     Metadata = ('routes', 'embeds', 'urls')
+
+    def get_routes(self):
+        return self.routes
+
+    def walk(self, name):
+        if name not in self.routes:
+            raise Exception(name)
+
+        url = self.urls.get(name, name)
+
+        cached = self.embeds.get(name)
+
+        return Request('walk', url, {}, None, cached)
+    
 
 class ResultSet(Enumerable, Message):
     apiVersion = 'v0'
