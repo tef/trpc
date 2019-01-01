@@ -1,14 +1,11 @@
-# trpc
+# TRPC
 
-trpc is a toolkit for writing and interacting with client-server APIs.
+This is a proof of concept library, so forgive me again for implementing before documenting.  Every example works, except where noted.
+
+trpc is a framework for writing and interacting with client-server APIs.  You can mix and match rpc and crud, break up large or long responses without breaing clients, and you can even generate the schema from the code, too!
 
 trpc is also a command line tool: you don't need to implement a client, or a server, to use it.
 
-trpc is also a framework: you can mix and match rpc and crud, break up large or long responses without breaing clients, and y can even generate the schema from the code, too!
-
-trpc is also restful rpc framework, but that's not important and no-one cares
-
-This is a proof of concept library, so forgive me again for implementing before documenting. Every example works, except where noted.
 
 # You don't have to write server code
 
